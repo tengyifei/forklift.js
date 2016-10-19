@@ -1,0 +1,15 @@
+{
+  "name": "sdfs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@gitlab-beta.engr.illinois.edu:teng9/sdfs.git"
+  },
+  "author": "Yifei Teng <tengyifei88@gmail.com> (https://thinkingandcomputing.com/)",
+  "license": "ISC"
+}
