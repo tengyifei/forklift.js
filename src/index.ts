@@ -19,7 +19,9 @@ bootstrapDNS.then(() => {
     udp: { maxDgramSize: 768 } // optional
   };
   var swim = new Swim(opts);
-  var hostsToJoin = [`${host2ip('fa16-cs425-g06-01.cs.illinois.edu')}:${port}`];
+  var hostsToJoin = myHost() === 'fa16-cs425-g06-01.cs.illinois.edu'
+                  ? []
+                  : [`${host2ip('fa16-cs425-g06-01.cs.illinois.edu')}:${port}`];
 
   swim.bootstrap(hostsToJoin, err => {
     if (err) {
