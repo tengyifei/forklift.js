@@ -1,61 +1,64 @@
-/// <reference path="./swim.d.ts" />
+import swimFuture from './swim';
+import * as readline from 'readline';
+import * as tty from 'tty';
+const charm = require('charm')(process);
 
-import Swim = require('swim');
-import { bootstrapDNS, myHost, myIP, host2ip, ip2host } from './resolve-name';
+(() => {
 
-const port = '22894';
+  // clears screen
+  charm.reset();
+  const stdin = process.stdin;
+  (<tty.ReadStream> stdin).setRawMode(true);
 
-enum MemberState {
-  Alive = 0,
-  Suspect = 1,
-  Faulty = 2
-}
+  // cache the command
+  let input = '';
 
-bootstrapDNS.then(() => {
-  var opts = {
-    local: {
-      host: `${myIP()}:${port}`,
-      meta: { 'application': 'sdfs' } // optional
-    },
-    codec: 'msgpack', // optional
-    disseminationFactor: 15, // optional
-    interval: 100, // optional
-    joinTimeout: 200, // optional
-    pingTimeout: 20, // optional
-    pingReqTimeout: 60, // optional
-    pingReqGroupSize: 3, // optional
-    udp: { maxDgramSize: 768 } // optional
-  };
-  var swim = new Swim(opts);
-  var hostsToJoin = myHost() === 'fa16-cs425-g06-01.cs.illinois.edu'
-                  ? []
-                  : [`${host2ip('fa16-cs425-g06-01.cs.illinois.edu')}:${port}`];
+  // command input
+  console.log('SDFS> ');
+  let outputx = 0, outputy = 1;
 
-  let beautify = ip => (+(/fa16-cs425-g06-(\d\d).cs.illinois.edu/.exec(ip2host(ip) || '') || [])[1]) || ip;
+  let inputx = 6;
 
-  let doBootstrap = () => {
-    swim.bootstrap(hostsToJoin, err => {
-      if (err) {
-        // error handling, retry
-        console.error(err);
-        setTimeout(doBootstrap, 1000);
-        return;
-      }
-      // ready
-      console.log(`My IP: ${swim.whoami()}`);
-      // change on membership, e.g. new node or node died/left
-      swim.on(Swim.EventType.Change, function onChange (update) {
-        if (update.state === MemberState.Alive) {
-          console.log('Join: ' + beautify(update.host));
-        } else if (update.state === MemberState.Faulty) {
-          console.log('Down: ' + beautify(update.host));
-        } 
-      });
+  stdin.on('data', key => {
+    if (key.toString() === '\r') {
+      // enter key
+      input = '';
+      inputx = 6;
+      // clear command
+      charm.position(0, 0);
+      charm.erase('line');
+      charm.write('SDFS> ');
+    } else {
+      input += key;
+      inputx += 1;
+    }
+  });
+
+  let patch = fn => (...args) => {
+    // restore output coordinate
+    charm.position(outputx, outputy);
+    // write our log, then clear first line for command input
+    fn(...args);
+    charm.position((x, y) => {
+      outputx = x;
+      outputy = y;
+      // clear
+      charm.position(0, 0);
+      charm.erase('line');
+      charm.write('SDFS> ');
+      charm.write(input);
     });
   };
-  
-  doBootstrap();
-});
 
-// shutdown
-// swim.leave();
+  console.debug = patch(console.debug);
+  console.log = patch(console.log);
+  console.error = patch(console.error);
+  console.info = patch(console.info);
+
+})();
+
+swimFuture.then(swim => {
+
+  console.log('Membership protocol ready');
+
+});
