@@ -27,7 +27,7 @@ export let bootstrapDNS = (() => {
           console.error('Cannot resolve ' + hostname);
           rej(err);
         } else {
-          res(address);
+          setTimeout(() => res(address), 10);
         }
       }));
   return Promise.all(Array(10).fill(0).map((_, i) => i + 1) // 1..10

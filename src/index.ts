@@ -15,7 +15,7 @@ const charm = require('charm')(process);
 
   // command input
   console.log('SDFS> ');
-  let outputx = 0, outputy = 1;
+  let outputx = 0, outputy = 2;
 
   let inputx = 6;
 
@@ -28,27 +28,35 @@ const charm = require('charm')(process);
       charm.position(0, 0);
       charm.erase('line');
       charm.write('SDFS> ');
+      // process input
     } else {
       input += key;
       inputx += 1;
     }
   });
 
-  let patch = fn => (...args) => {
-    // restore output coordinate
-    charm.position(outputx, outputy);
-    // write our log, then clear first line for command input
-    fn(...args);
-    charm.position((x, y) => {
-      outputx = x;
-      outputy = y;
-      // clear
-      charm.position(0, 0);
-      charm.erase('line');
-      charm.write('SDFS> ');
-      charm.write(input);
-    });
-  };
+  let outputChain = Promise.resolve();
+
+  // enqueue (chain) operations
+  let patch = fn => (...args) => outputChain = outputChain.then(() =>
+    new Promise((resolve, reject) => {
+      // restore output coordinate
+      charm.position(outputx, outputy);
+      // write our log, then clear first line for command input
+      fn(...args);
+      // async get cursor position
+      charm.position((x, y) => {
+        outputx = x;
+        outputy = y;
+        // clear
+        charm.position(0, 0);
+        charm.erase('line');
+        charm.write('SDFS> ');
+        charm.write(input);
+        // continue the chain
+        resolve();
+      });
+    }));
 
   console.debug = patch(console.debug);
   console.log = patch(console.log);
