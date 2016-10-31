@@ -21,6 +21,7 @@ declare module 'swim' {
     whoami(): string;
     members(): Member[];
     on(type: string, callback: (x: Member) => void);
+    leave();
   }
 
   namespace Swim {

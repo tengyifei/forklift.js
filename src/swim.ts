@@ -38,6 +38,7 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
       if (err) {
         // error handling, retry
         console.error(err);
+        swim.leave();
         setTimeout(doBootstrap, 1000);
         return;
       }
