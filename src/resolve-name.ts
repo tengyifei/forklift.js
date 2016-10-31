@@ -12,7 +12,7 @@ export function host2ip(host: string): string {
 
 export function ip2host(ip: string): string {
   let portStripped = (/(.*\..*\..*\..*):\d+/.exec(ip) || [])[1] || ip;
-  return reverseLookupTable[ip];
+  return reverseLookupTable[portStripped];
 }
 
 export let myHost = () => myHostname;
