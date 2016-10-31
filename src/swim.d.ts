@@ -2,9 +2,15 @@ declare module 'swim' {
 
   export = Swim;
 
+  enum MemberState {
+    Alive = 0,
+    Suspect = 1,
+    Faulty = 2
+  }
+
   interface Member {
     meta: any,
-    state: Swim.Member.State,
+    state: MemberState,
     host: string,
     incarnation: number
   }
@@ -18,13 +24,6 @@ declare module 'swim' {
   }
 
   namespace Swim {
-    namespace Member {
-        enum State {
-        Alive = 0,
-        Suspect = 1,
-        Faulty = 2
-      }
-    }
     namespace EventType {
       export const Change: string;
       export const Update: string;

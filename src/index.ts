@@ -5,6 +5,12 @@ import { bootstrapDNS, myHost, myIP, host2ip, ip2host } from './resolve-name';
 
 const port = '22894';
 
+enum MemberState {
+  Alive = 0,
+  Suspect = 1,
+  Faulty = 2
+}
+
 bootstrapDNS.then(() => {
   var opts = {
     local: {
@@ -39,9 +45,9 @@ bootstrapDNS.then(() => {
       console.log(`My IP: ${swim.whoami()}`);
       // change on membership, e.g. new node or node died/left
       swim.on(Swim.EventType.Change, function onChange (update) {
-        if (update.state === Swim.Member.State.Alive) {
+        if (update.state === MemberState.Alive) {
           console.log('Join: ' + beautify(update.host));
-        } else if (update.state === Swim.Member.State.Faulty) {
+        } else if (update.state === MemberState.Faulty) {
           console.log('Down: ' + beautify(update.host));
         } 
       });
