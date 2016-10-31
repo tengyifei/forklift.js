@@ -73,3 +73,4 @@ typings
 **/jspm
 public/
 
+dist/

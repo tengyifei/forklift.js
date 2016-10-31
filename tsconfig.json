@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "target": "es6",
+        "module": "commonjs",
+        "sourceMap": true,
+        "experimentalDecorators": true,
+        "jsx": "react"
+    },
+    "exclude": [
+        "node_modules",
+        "dist",
+        "gulp",
+        "OCR_Python"
+    ],
+    "typescript.tsdk": "node_modules/typescript/lib"
+}
