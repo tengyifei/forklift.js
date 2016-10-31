@@ -47,6 +47,8 @@ bootstrapDNS.then(() => {
       });
     });
   };
+  
+  doBootstrap();
 });
 
 // shutdown
