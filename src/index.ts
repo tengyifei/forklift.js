@@ -1,9 +1,13 @@
 import * as Swim from 'swim';
+import { bootstrapDNS, myHost, myIP, host2ip, ip2host } from './resolve-name';
 
-var opts = {
+const port = '22894';
+
+bootstrapDNS.then(() => {
+  var opts = {
     local: {
-        host: '127.0.0.1:22894',
-        meta: {'application': 'info'} // optional
+      host: `${myIP()}:${port}`,
+      meta: { 'application': 'sdfs' } // optional
     },
     codec: 'msgpack', // optional
     disseminationFactor: 15, // optional
@@ -12,15 +16,15 @@ var opts = {
     pingTimeout: 20, // optional
     pingReqTimeout: 60, // optional
     pingReqGroupSize: 3, // optional
-    udp: {maxDgramSize: 512} // optional
-};
-var swim = new Swim(opts);
-var hostsToJoin = ['127.0.0.1:22894'];
+    udp: { maxDgramSize: 768 } // optional
+  };
+  var swim = new Swim(opts);
+  var hostsToJoin = [`${myIP()}:${port}`];
 
-swim.bootstrap(hostsToJoin, err => {
+  swim.bootstrap(hostsToJoin, err => {
     if (err) {
-        // error handling
-        return;
+      // error handling
+      return;
     }
 
     // ready
@@ -30,13 +34,15 @@ swim.bootstrap(hostsToJoin, err => {
 
     // change on membership, e.g. new node or node died/left
     swim.on(Swim.EventType.Change, function onChange(update) {
-        console.log('Change:', update);
+      console.log('Change:', update);
     });
     // update on membership, e.g. node recovered or update on meta data
     swim.on(Swim.EventType.Update, function onUpdate(update) {
-        console.log('Update:', update);
+      console.log('Update:', update);
     });
 
-    // shutdown
-    swim.leave();
+  });
 });
+
+// shutdown
+// swim.leave();

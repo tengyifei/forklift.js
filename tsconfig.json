@@ -9,8 +9,7 @@
     "exclude": [
         "node_modules",
         "dist",
-        "gulp",
-        "OCR_Python"
+        "gulp"
     ],
     "typescript.tsdk": "node_modules/typescript/lib"
 }
