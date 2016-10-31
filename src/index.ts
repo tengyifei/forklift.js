@@ -1,4 +1,6 @@
-import * as Swim from 'swim';
+/// <reference path="./swim.d.ts" />
+
+import Swim = require('swim');
 import { bootstrapDNS, myHost, myIP, host2ip, ip2host } from './resolve-name';
 
 const port = '22894';
@@ -26,21 +28,17 @@ bootstrapDNS.then(() => {
   swim.bootstrap(hostsToJoin, err => {
     if (err) {
       // error handling
+      console.error(err);
       return;
     }
 
     // ready
     console.log(swim.whoami());
     console.log(swim.members());
-    console.log(swim.checksum());
 
     // change on membership, e.g. new node or node died/left
-    swim.on(Swim.EventType.Change, function onChange(update) {
+    swim.on(Swim.EventType.Change, function onChange (update) {
       console.log('Change:', update);
-    });
-    // update on membership, e.g. node recovered or update on meta data
-    swim.on(Swim.EventType.Update, function onUpdate(update) {
-      console.log('Update:', update);
     });
 
   });
