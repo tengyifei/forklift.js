@@ -30,6 +30,9 @@ export let runConsole = (processor: (x: Input) => void) => {
 
   stdin.on('data', key => {
     if (key.toString() === '\r') {
+      // process input
+      let inputCopy = input.split('').join('');
+      setTimeout(() => processor({ kind: 'command', value: inputCopy }), 1);
       // enter key
       input = '';
       inputx = 6;
@@ -37,8 +40,6 @@ export let runConsole = (processor: (x: Input) => void) => {
       charm.position(0, 0);
       charm.erase('line');
       charm.write('SDFS> ');
-      // process input
-      processor({ kind: 'command', value: input.split('').join('') });
     } else {
       input += key;
       inputx += 1;
