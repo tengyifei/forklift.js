@@ -7,6 +7,10 @@ runConsole(item => {
   switch (item.kind) {
     case 'command':
       console.log('You typed: ' + item.value);
+      let command = item.value;
+      if (command === 'terminate') {
+        process.exit(0);
+      }
     break;
     case 'exit':
       console.log('Shutting down');
