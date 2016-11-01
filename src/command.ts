@@ -32,7 +32,9 @@ export let runConsole = (processor: (x: Input) => void) => {
     if (key.toString() === '\r') {
       // process input
       let inputCopy = input.split('').join('');
-      setTimeout(() => processor({ kind: 'command', value: inputCopy }), 1);
+      if (inputCopy !== '') {
+        setTimeout(() => processor({ kind: 'command', value: inputCopy }), 1);
+      }
       // enter key
       input = '';
       inputx = 6;
@@ -40,9 +42,22 @@ export let runConsole = (processor: (x: Input) => void) => {
       charm.position(0, 0);
       charm.erase('line');
       charm.write('SDFS> ');
+    } else if (key.toString() === '\u007f') {
+      // backspace
+      if (inputx > 6) {
+        charm.position(inputx, 0);
+        charm.erase('end');
+        input = input.substr(0, input.length - 1);
+        inputx -= 1;
+      } else {
+        charm.position(7, 0);
+      }
     } else {
-      input += key;
-      inputx += 1;
+      // hack for charm problem. filter out undisplayable characters
+      if (/^([!@#$%^&*()/\[\]\\\|{};':"./>?,<~`+=_\-0-9A-z \u00C0-\u00ff]+)$/.test(key.toString())) {
+        input += key.toString();
+        inputx += 1;
+      }
     }
   });
 

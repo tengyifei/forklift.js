@@ -24,11 +24,11 @@ runConsole(item => {
       if (command === 'terminate') {
         process.exit(0);
       }
-      matchCommand(command, [
-        [/^put (.*) (.*)$/, (local, remote) => { }],
-        [/^get (.*) (.*)$/, (remote, local) => { }],
-        [/^delete (.*)$/, file => { }],
-        [/^ls (.*)$/, file => { }],
+      matchCommand(command.trim(), [
+        [/^put (\S+) (\S+)$/, (local, remote) => { console.log(local, remote) }],
+        [/^get (\S+) (\S+)$/, (remote, local) => { }],
+        [/^delete (\S+)$/, file => { }],
+        [/^ls (\S+)$/, file => { }],
         [/^store$/, () => { }]
       ]);
     break;
