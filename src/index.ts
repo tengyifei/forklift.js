@@ -25,7 +25,7 @@ runConsole(item => {
         process.exit(0);
       }
       matchCommand(command.trim(), [
-        [/^put (\S+) (\S+)$/, (local, remote) => { console.log(local, remote) }],
+        [/^put (\S+) (\S+)$/, (local, remote) => { }],
         [/^get (\S+) (\S+)$/, (remote, local) => { }],
         [/^delete (\S+)$/, file => { }],
         [/^ls (\S+)$/, file => { }],
