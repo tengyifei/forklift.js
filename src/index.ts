@@ -50,18 +50,23 @@ runConsole(item => {
 swimFuture.then(swim => {
   console.log('Membership protocol ready');
 
-  terminalCommands = terminalCommands.concat(
-    [[/whoami/, () => console.log(ipToID(swim.whoami()))],
+  terminalCommands = terminalCommands.concat([
+    [/whoami/, () => console.log(ipToID(swim.whoami()))],
     [/members/, () => console.log(`Active nodes: ${
-      swim.members().map(x => x.host).map(ipToID).join(', ')}`)]]);
+      swim.members()
+      .map(x => x.host)
+      .concat(swim.whoami())
+      .sort()
+      .map(ipToID)
+      .join(', ')}`)]]);
 });
 
 fileSystemProtocol.then(filesys => {
   console.log('Filesystem protocol ready');
   const { put, get, del, ls, store } = filesys;
 
-  terminalCommands = terminalCommands.concat(
-    [[/^put (\S+) (\S+)$/, (local, remote) => { }],
+  terminalCommands = terminalCommands.concat([
+    [/^put (\S+) (\S+)$/, (local, remote) => { }],
     [/^get (\S+) (\S+)$/, (remote, local) => { }],
     [/^delete (\S+)$/, file => { }],
     [/^ls (\S+)$/, file => { }],
