@@ -52,7 +52,8 @@ swimFuture.then(swim => {
 
   terminalCommands = terminalCommands.concat(
     [[/whoami/, () => console.log(ipToID(swim.whoami()))],
-    [/members/, () => console.log(`Active nodes: ${swim.members().map(ipToID).join(', ')}`)]]);
+    [/members/, () => console.log(`Active nodes: ${
+      swim.members().map(x => x.host).map(ipToID).join(', ')}`)]]);
 });
 
 fileSystemProtocol.then(filesys => {
