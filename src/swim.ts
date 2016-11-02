@@ -11,6 +11,8 @@ enum MemberState {
   Faulty = 2
 }
 
+export const ipToID = ip => (+(/fa16-cs425-g06-(\d\d).cs.illinois.edu/.exec(ip2host(ip) || '') || [])[1]) || ip;
+
 export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
   var opts = {
     local: {
@@ -31,8 +33,6 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
                   ? []
                   : [`${host2ip('fa16-cs425-g06-01.cs.illinois.edu')}:${port}`];
 
-  let beautify = ip => (+(/fa16-cs425-g06-(\d\d).cs.illinois.edu/.exec(ip2host(ip) || '') || [])[1]) || ip;
-
   let doBootstrap = () => {
     swim.bootstrap(hostsToJoin, err => {
       if (err) {
@@ -47,9 +47,9 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
       // change on membership, e.g. new node or node died/left
       swim.on(Swim.EventType.Change, function onChange (update) {
         if (update.state === MemberState.Alive) {
-          console.log('Join: ' + beautify(update.host));
+          console.log('Join: ' + ipToID(update.host));
         } else if (update.state === MemberState.Faulty) {
-          console.log('Down: ' + beautify(update.host));
+          console.log('Down: ' + ipToID(update.host));
         }
       });
       // resolve with the bootstrapped swim object

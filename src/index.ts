@@ -1,7 +1,11 @@
 import swimFuture from './swim';
+import { ipToID } from './swim';
+import * as Swim from 'swim';
 import { Command, Exit, runConsole } from './command';
+import { fileSystemProtocol } from './filesys';
+import * as Bluebird from 'bluebird';
 
-let isSwimActive = false;
+let terminalCommands: [RegExp, Function][] = [];
 
 let matchCommand: (x: string, y: [RegExp, Function][]) => void
   = (command, functions) => {
@@ -24,29 +28,41 @@ runConsole(item => {
       if (command === 'terminate') {
         process.exit(0);
       }
-      matchCommand(command.trim(), [
-        [/^put (\S+) (\S+)$/, (local, remote) => { }],
-        [/^get (\S+) (\S+)$/, (remote, local) => { }],
-        [/^delete (\S+)$/, file => { }],
-        [/^ls (\S+)$/, file => { }],
-        [/^store$/, () => { }]
-      ]);
+      matchCommand(command.trim(), terminalCommands);
     break;
     case 'exit':
       console.log('Shutting down');
-      if (isSwimActive) {
-        swimFuture
-        .then(swim => swim.leave())
-        .then(() => process.exit(0));
-      } else {
-        process.exit(0);
-      }
+      Promise.race([swimFuture, Promise.resolve(null)])
+      .then(x => {
+        if (x) {  // swim is active
+          swimFuture
+          .then(swim => swim.leave())
+          .then(() => Bluebird.delay(50))
+          .then(() => process.exit(0));
+        } else {
+          process.exit(0);
+        }
+      })
     break;
   }
 });
 
 swimFuture.then(swim => {
-  isSwimActive = true;
   console.log('Membership protocol ready');
-  // initialize file protocol
+
+  terminalCommands = terminalCommands.concat(
+    [/whoami/, () => console.log(ipToID(swim.whoami()))],
+    [/members/, () => { }]);
+});
+
+fileSystemProtocol.then(filesys => {
+  console.log('Filesystem protocol ready');
+  const { put, get, del, ls, store } = filesys;
+
+  terminalCommands = terminalCommands.concat(
+    [/^put (\S+) (\S+)$/, (local, remote) => { }],
+    [/^get (\S+) (\S+)$/, (remote, local) => { }],
+    [/^delete (\S+)$/, file => { }],
+    [/^ls (\S+)$/, file => { }],
+    [/^store$/, () => { }]);
 });
