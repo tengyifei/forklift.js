@@ -24,11 +24,11 @@ let matchCommand: (x: string, y: [RegExp, Function][]) => void
 runConsole(item => {
   switch (item.kind) {
     case 'command':
-      let command = item.value;
+      let command = item.value.trim();
       if (command === 'terminate') {
         process.exit(0);
       }
-      matchCommand(command.trim(), terminalCommands);
+      matchCommand(command, terminalCommands);
     break;
     case 'exit':
       console.log('Shutting down');
@@ -53,6 +53,8 @@ swimFuture.then(swim => {
   terminalCommands = terminalCommands.concat(
     [/whoami/, () => console.log(ipToID(swim.whoami()))],
     [/members/, () => console.log(`Active nodes: ${swim.members().map(ipToID).join(', ')}`)]);
+
+  console.log(terminalCommands);
 });
 
 fileSystemProtocol.then(filesys => {
@@ -65,4 +67,6 @@ fileSystemProtocol.then(filesys => {
     [/^delete (\S+)$/, file => { }],
     [/^ls (\S+)$/, file => { }],
     [/^store$/, () => { }]);
+  
+  console.log(terminalCommands);
 });
