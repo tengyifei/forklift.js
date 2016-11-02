@@ -51,7 +51,7 @@ swimFuture.then(swim => {
   console.log('Membership protocol ready');
 
   terminalCommands = terminalCommands.concat([
-    [/whoami/, () => console.log(ipToID(swim.whoami()))],
+    [/whoami/, () => console.log(`I am: ${ipToID(swim.whoami())}`)],
     [/members/, () => console.log(`Active nodes: ${
       swim.members()
       .map(x => x.host)
