@@ -37,7 +37,7 @@ function request(id: number, api: string, key: string, body?: Buffer): Promise<B
     console.log(`Downloading ${key} from node ${id}`);
   }
   return <Promise<Buffer>> <any> rp({
-    uri: `fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
+    uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
     method: 'POST',
     headers: { 'sdfs-key': key },
     body,
