@@ -145,6 +145,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       console.log(req.body.constructor.toString());
       console.log(req.body.toString());
       console.log(JSON.stringify(req.body));
+      console.log(Object.getOwnPropertyNames(req.body));
       files[key] = new Buffer(req.body);
     } else {
       res.sendStatus(400).send('Must specify sdfs-key');
