@@ -295,13 +295,13 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  promise.catch(err => {
+  promise.catch(err => setTimeout(() => {
     console.warn('Warning: Unhandled Promise Rejection, reason: ' + reason);
     if (err.error && err.response) {
-      console.warn(err.error.toString());
-      console.warn(err.response.toString());
+      console.warn('Request-Promise Error: ' + err.error.toString());
+      console.warn('Request-Promise Response: ' + err.response.toString());
     }
-  });
+  }, 10));
 });
 
 process.on('rejectionHandled', () => { });
