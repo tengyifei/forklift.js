@@ -141,6 +141,11 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }
   });
 
+  // list all keys under format { keys: [...] }
+  app.post('/list_keys', (req, res) => {
+    res.send({ keys: Object.keys(files) });
+  });
+
   // tells us we should replicate this file, when a node goes down
   app.post('/push', (req, res) => {
     let key = req.header('sdfs-key');
