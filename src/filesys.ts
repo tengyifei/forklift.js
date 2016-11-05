@@ -120,7 +120,11 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   const filesLostOnNode = (id: number) => Object.keys(files)
       .filter(k => getAllActiveReplicants(k, id).findIndex(x => x === id) >= 0);
   
-  app.use(bodyParser.raw()); 
+  app.use(bodyParser.raw({
+    inflate: true,
+    limit: '600mb',
+    type: '*/*'
+  }));
 
   // send our file if possible
   app.post('/download', (req, res) => {
