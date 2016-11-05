@@ -1,6 +1,7 @@
 import swimFuture from './swim';
 import { ipToID } from './swim';
 import * as Swim from 'swim';
+import * as fs from 'fs';
 import { Command, Exit, runConsole } from './command';
 import { fileSystemProtocol } from './filesys';
 import * as Bluebird from 'bluebird';
@@ -66,9 +67,21 @@ fileSystemProtocol.then(filesys => {
   const { put, get, del, ls, store } = filesys;
 
   terminalCommands = terminalCommands.concat([
-    [/^put (\S+) (\S+)$/, (local, remote) => { }],
-    [/^get (\S+) (\S+)$/, (remote, local) => { }],
-    [/^delete (\S+)$/, file => { }],
-    [/^ls (\S+)$/, file => { }],
-    [/^store$/, () => { }]]);
+    [/^put (\S+) (\S+)$/, (local, remote) =>
+      Bluebird.promisify(fs.readFile)(local)
+      .then(buff => put(remote, buff))
+      .then(() => console.log(`${local} uploaded as ${remote}`))],
+    [/^get (\S+) (\S+)$/, (remote, local) =>
+      get(remote)
+      .then(buff => (<(x: string, y: any) => Promise<void>> <any> Bluebird.promisify(fs.writeFile))(local, buff))
+      .then(() => console.log(`${remote} downloaded as ${local}`))],
+    [/^delete (\S+)$/, file =>
+      del(file).then(() =>
+        console.log(`Deleted ${file}`))],
+    [/^ls (\S+)$/, file =>
+      ls(file).then(nodes =>
+        console.log(`Nodes containing ${file}: ${nodes.sort().join(', ')}`))],
+    [/^store$/, () =>
+      store().then(files =>
+        console.log(`We store:\n` + files.map(x => `\t${x}`).join('\n')))]]);
 });
