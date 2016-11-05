@@ -14,11 +14,16 @@ function sequentialAttempt <T> (promises: (() => Promise<T>)[]): Promise<T> {
 }
 
 function request(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
-  return rp({
-    uri: `fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu/${api}`,
+  if (api === 'download') {
+    console.log(`Downloading ${key} from node ${id}`);
+  }
+  return <Promise<Buffer>> <any> rp({
+    uri: `fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
     method: 'POST',
     headers: { 'sdfs-key': key },
-    body
+    body,
+    encoding: null,
+    gzip: true
   });
 }
 
@@ -99,6 +104,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   app.post('/download', (req, res) => {
     let key = req.header('sdfs-key');
     if (key && files[key]) {
+      console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is downloading ${key} from us`);
       res.send(files[key]);
     } else {
       res.sendStatus(404).send('Not found: ' + key);
@@ -109,6 +115,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   app.post('/upload', (req, res) => {
     let key = req.header('sdfs-key');
     if (key) {
+      console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is uploading ${key} to us`);
       files[key] = new Buffer(req.body);
     } else {
       res.sendStatus(400).send('Must specify sdfs-key');
@@ -124,6 +131,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         res.sendStatus(200);
       } else {
         // need to replicate
+        console.log(`Attempt to replicate ${key} due to node failure`);
         inFlightReplication[key] = true;
         sequentialAttempt(getAllActiveReplicants(key)
           .map(id =>
@@ -135,7 +143,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
           res.sendStatus(200);
         })
         .catch(err =>
-          res.sendStatus(500).send('On-failure replication failed: ' + JSON.stringify(err)));
+          res.sendStatus(500).send('On-failure replication errorred: ' + JSON.stringify(err)));
       }
     } else {
       res.sendStatus(400).send('Must specify sdfs-key');
@@ -155,6 +163,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   // removes the file from memory
   app.post('/delete', (req, res) => {
     let key = req.header('sdfs-key');
+    console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} ordering us to delete ${key}`);
     if (key) {
       res.send({ deleted: !!files[key] });
       delete files[key];
@@ -181,37 +190,82 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
 
   let store = () => Promise.resolve(Object.keys(files));
 
-  swim.on(Swim.EventType.Change, update => {
-    if (update.state === MemberState.Faulty) {
-      // tell the right guy to replicate
-      let activeMembers = getActiveMembers();
-      let downID = ipToID(update.host);
-      filesLostOnNode(downID).forEach(key => {
-        // find the backup replicant
-        let replicant: number = NaN;
-        let afterDown = false;
-        for (let id of hashKey(key)) {
-          if (afterDown && activeMembers[id]) {
-            replicant = id;
-            break;
-          }
-          if (id === downID) {
-            afterDown = true;
-          }
-        }
-        if (isNaN(replicant) !== true) {
-          // instruct replicant to grab file
-          request(replicant, 'push', key);
-        }
-      });
-    }
-  });
-
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
-  .then(() => {
-    // perform initial replication
-
-  })
+  .then(() => console.log('Initial replication'))
+  .then(() => Promise.all(  // perform initial replication
+      Object.keys(getActiveMembers())
+      .filter(id => +id !== ipToID(swim.whoami()))    // we're not active yet
+      .map(id => request(+id, 'list_keys', '')
+      .then(resp => JSON.parse(resp.toString()))
+      .then <[number, string[]]> (obj => [+id, obj.keys])))
+    .then(allKeys => {
+      // group by key
+      let keyToNodes: { [key: string]: number[] } = {};
+      allKeys.forEach(([id, keys]) =>
+        keys.forEach(key => {
+          keyToNodes[key] = keyToNodes[key] || [];
+          keyToNodes[key].push(id);
+        }));
+      // find the ones we own
+      let ourID = ipToID(swim.whoami());
+      return Promise.all(
+        Object.keys(keyToNodes)
+        .filter(k => getAllIdealReplicants(k).findIndex(x => x === ourID) >= 0)
+        .map(k =>
+          sequentialAttempt(keyToNodes[k]   // try all nodes which have k
+            .map(id => () => request(id, 'download', k)))   // replicate
+          .then(buf => files[k] = buf)))
+      .then(() => Promise.all(   // delete extra replica
+        Object.keys(files).map(k => {
+          keyToNodes[k].push(ourID);
+          let prs = [];
+          if (keyToNodes[k].length > 3) {
+            // delete down to 3
+            let ideal = getAllIdealReplicants(k);
+            let extraNodes = keyToNodes[k].filter(id => ideal.findIndex(x => x === id) < 0);
+            for (let i = 0; i < keyToNodes[k].length - 3; i++) {
+              let idx = Math.floor(Math.random() * extraNodes.length) | 0;
+              if (idx >= extraNodes.length) idx = extraNodes.length - 1;
+              if (idx < 0) break;
+              // delete file
+              prs.push(request(extraNodes[idx], 'delete', k));
+              extraNodes = extraNodes.filter((_, j) => j !== idx);
+            }
+          }
+          return Promise.all(prs);
+        })));
+    }))
+  .then(() =>   // enable on-failure replication
+    swim.on(Swim.EventType.Change, update => {
+      if (update.state === MemberState.Faulty) {
+        // tell the right guy to replicate
+        let activeMembers = getActiveMembers();
+        let downID = ipToID(update.host);
+        filesLostOnNode(downID).forEach(key => {
+          // find the backup replicant
+          let replicant: number = NaN;
+          let afterDown = false;
+          for (let id of hashKey(key)) {
+            if (afterDown && activeMembers[id]) {
+              replicant = id;
+              break;
+            }
+            if (id === downID) {
+              afterDown = true;
+            }
+          }
+          if (isNaN(replicant) !== true) {
+            // instruct replicant to grab file
+            request(replicant, 'push', key)
+            .catch(err => {
+              console.error('Push failure: ', JSON.stringify(err));
+              // try again
+              request(replicant, 'push', key);
+            });
+          }
+        });
+      }
+    }))
   .then(() => Object.freeze({
     put, get, del, ls, store
   }));

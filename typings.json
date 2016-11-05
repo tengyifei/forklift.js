@@ -5,6 +5,7 @@
     "express-serve-static-core": "registry:dt/express-serve-static-core#4.0.0+20161012061536",
     "node": "registry:dt/node#6.0.0+20161019125345",
     "protobufjs": "registry:dt/protobufjs#5.0.1+20161019142200",
+    "request": "registry:dt/request#0.0.0+20160726020908",
     "request-promise": "registry:dt/request-promise#4.1.0+20161013074249",
     "serve-static": "registry:dt/serve-static#0.0.0+20160606155157"
   }

@@ -17,7 +17,7 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
   var opts = {
     local: {
       host: `${myIP()}:${port}`,
-      meta: { 'application': 'sdfs' } // optional
+      meta: { 'app': 'sdfs' } // optional
     },
     codec: 'msgpack', // optional
     disseminationFactor: 15, // optional
@@ -56,6 +56,20 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
           console.log('Down: ' + ipToID(update.host));
         }
       });
+      // patch members to include ourself
+      swim.members = (() => {
+        let oldMembersFn = <typeof swim.members> swim.members.bind(swim);
+        return () => {
+          let otherMembers = oldMembersFn();
+          otherMembers.push({
+            host: swim.whoami(),
+            state: MemberState.Alive,
+            meta: { 'app': 'sdfs' },
+            incarnation: 0
+          });
+          return otherMembers;
+        }
+      })();
       // resolve with the bootstrapped swim object
       resolve(swim);
     });
