@@ -5,7 +5,7 @@ import { bootstrapDNS, myHost, myIP, host2ip, ip2host } from './resolve-name';
 
 const port = '22894';
 
-enum MemberState {
+export enum MemberState {
   Alive = 0,
   Suspect = 1,
   Faulty = 2
@@ -29,17 +29,21 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
     udp: { maxDgramSize: 768 } // optional
   };
   var swim = new Swim(opts);
+  // two introducer nodes
   var hostsToJoin = myHost() === 'fa16-cs425-g06-01.cs.illinois.edu'
-                  ? []
-                  : [`${host2ip('fa16-cs425-g06-01.cs.illinois.edu')}:${port}`];
+                  ? [`${host2ip('fa16-cs425-g06-02.cs.illinois.edu')}:${port}`]
+                  : myHost() === 'fa16-cs425-g06-02.cs.illinois.edu'
+                  ? [`${host2ip('fa16-cs425-g06-01.cs.illinois.edu')}:${port}`]
+                  : [`${host2ip('fa16-cs425-g06-01.cs.illinois.edu')}:${port}`
+                   , `${host2ip('fa16-cs425-g06-02.cs.illinois.edu')}:${port}`];
 
-  let doBootstrap = () => {
-    swim.bootstrap(hostsToJoin, err => {
+  let doBootstrap = (failed?: number) => {
+    swim.bootstrap((failed || 0) > 3 ? [] : hostsToJoin, err => {
       if (err) {
         // error handling, retry
         console.error(err);
         swim.leave();
-        setTimeout(doBootstrap, 1000);
+        setTimeout(() => doBootstrap((failed || 0) + 1), 950 + Math.random() * 100);
         return;
       }
       // ready
