@@ -303,3 +303,5 @@ process.on('unhandledRejection', (reason, promise) => {
     }
   });
 });
+
+process.on('rejectionHandled', () => { });
