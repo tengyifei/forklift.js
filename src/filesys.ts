@@ -36,6 +36,8 @@ function sequentialAttempt <T> (promises: (() => Promise<T>)[] | IterableIterato
 function request(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
   if (api === 'download') {
     console.log(`Downloading ${key} from node ${id}`);
+  } else if (api === 'upload') {
+    console.log(`Uploading ${key} to node ${id}`);
   }
   return <Promise<Buffer>> <any> rp({
     uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
@@ -69,9 +71,24 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       exponent = exponent ^ part;
     }
     // generate probes
-    for (let i = 0; i < 30; i++) {
-      // (7 ^ (exponent + i)) mod 10
-      yield <number> modexp(7, exponent + i, 10);
+    let appeared = {};
+    let appearedCount = 0;
+    for (let i = 0, j = 0; i < 30; ) {
+      // (1543 ^ (exponent + i)) mod 2017
+      let candidate: number;
+      do {
+        candidate = (<number> modexp(1543, exponent + j, 4057)) % 10;
+        j += 1;
+      } while (appeared[candidate]);
+      i += 1;
+      appeared[candidate] = true;
+      appearedCount += 1;
+      if (appearedCount == 10) {
+        // reshuffle
+        appeared = {};
+        appearedCount = 0;
+      }
+      yield candidate;
     }
   }
 
