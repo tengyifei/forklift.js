@@ -304,8 +304,9 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         filesLostOnNode(downID).forEach(key => {
           // find the backup replicant
           let replicant: number = NaN;
+          let nodesWithFile = getAllActiveReplicants(key, downID);
           for (let id of hashKey(key)) {
-            if (activeMembers[id]) {
+            if (activeMembers[id] && nodesWithFile.findIndex(x => x === id) < 0) {
               replicant = id;
               break;
             }
