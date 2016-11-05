@@ -5,6 +5,7 @@ import * as Swim from 'swim';
 import * as rp from 'request-promise';
 import * as Bluebird from 'bluebird';
 import * as crypto from 'crypto';
+import * as bodyParser from 'body-parser';
 const modexp = require('mod-exp');
 
 function* mapItr <T, R> (input: IterableIterator<T>, fn: (x: T) => R) {
@@ -117,7 +118,9 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
    * Get the files on that node right before it went down.
    */
   const filesLostOnNode = (id: number) => Object.keys(files)
-      .filter(k => getAllActiveReplicants(k, id).findIndex(x => x === id) >= 0); 
+      .filter(k => getAllActiveReplicants(k, id).findIndex(x => x === id) >= 0);
+  
+  app.use(bodyParser.raw()); 
 
   // send our file if possible
   app.post('/download', (req, res) => {
