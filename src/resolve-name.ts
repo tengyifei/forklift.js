@@ -11,7 +11,7 @@ export function host2ip(host: string): string {
 }
 
 export function ip2host(ip: string): string {
-  let portStripped = (/(.*\..*\..*\..*):\d+/.exec(ip) || [])[1] || ip;
+  let portStripped = (/(\d+\.\d+\.\d+\.\d+):\d+/.exec(ip) || [])[1] || ip;
   return reverseLookupTable[portStripped];
 }
 
