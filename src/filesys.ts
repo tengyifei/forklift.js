@@ -142,7 +142,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     let key = req.header('sdfs-key');
     if (key) {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is uploading ${key} to us`);
-      console.log(typeof req.body);
+      console.log(req.body.constructor.toString());
       console.log(req.body.toString());
       console.log(JSON.stringify(req.body));
       files[key] = new Buffer(req.body);
