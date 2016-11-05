@@ -11,7 +11,7 @@ enum MemberState {
   Faulty = 2
 }
 
-export const ipToID = (ip: string) => (+(/fa16-cs425-g06-(\d\d).cs.illinois.edu/.exec(ip2host(ip) || '') || [])[1]) || ip;
+export const ipToID = (ip: string) => (+(/fa16-cs425-g06-(\d\d).cs.illinois.edu/.exec(ip2host(ip) || '') || [])[1]) || NaN;
 
 export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
   var opts = {
