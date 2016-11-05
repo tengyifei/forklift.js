@@ -7,10 +7,29 @@ import * as Bluebird from 'bluebird';
 import * as crypto from 'crypto';
 const modexp = require('mod-exp');
 
-function sequentialAttempt <T> (promises: (() => Promise<T>)[]): Promise<T> {
-  if (promises.length === 0) return Promise.reject(new Error('No success'));
-  return promises[0]()
-  .catch(err => sequentialAttempt(promises.slice(1)));
+function* mapItr <T, R> (input: IterableIterator<T>, fn: (x: T) => R) {
+  for (let x of input) yield fn(x);
+}
+
+function dedupe <T> (input: T[]): T[] {
+  let map = new Map<T, boolean>();
+  input.forEach(t => map.set(t, true));
+  return Array.from(map.keys());
+}
+
+function firstFewSuccess <T> (iterator: IterableIterator<() => Promise<T>>, max: number, curr?: number): Promise<T> {
+  curr = curr || 0;
+  if (curr >= max) return Promise.reject(new Error('Must run at least one iteration'));
+  let next = iterator.next();
+  if (typeof next.value === 'undefined') return Promise.reject(new Error('No success'));
+  return next.value()
+  .then(x => curr < max - 1 ? firstFewSuccess(iterator, max, curr + 1) : x)
+  .catch(err => firstFewSuccess(iterator, max, curr));
+}
+
+function sequentialAttempt <T> (promises: (() => Promise<T>)[] | IterableIterator<() => Promise<T>>): Promise<T> {
+  let iterator = promises instanceof Array ? promises[Symbol.iterator]() : promises;
+  return firstFewSuccess(iterator, 1);
 }
 
 function request(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
@@ -172,23 +191,27 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }
   });
 
-  let put = (key: string, file: Buffer) => new Promise((resolve, reject) => {
+  const put = (key: string, file: Buffer) =>
+    firstFewSuccess(mapItr(hashKey(key), id => () => request(id, 'upload', key, file)), 3);
 
-  });
+  const get = (key: string) =>
+    sequentialAttempt(mapItr(hashKey(key), id => () => request(id, 'download', key)));
 
-  let get = (key: string) => new Promise((resolve, reject) => {
+  const del = (key: string) => Promise.all(getAllActiveReplicants(key)
+    .map(id => request(id, 'delete', key)));
 
-  });
+  const ls = async (key: string) => {
+    let stored: number[] = [];
+    // inserts first 3 servers which has key
+    await firstFewSuccess(mapItr(hashKey(key), id => () =>
+      request(id, 'query', key)
+      .then(resp => JSON.parse(resp.toString()))
+      .then(x => x.present ? x : Promise.reject(`Not found on ${id}`))
+      .then(() => stored.push(id))), 3);
+    return dedupe(stored);
+  };
 
-  let del = (key: string) => new Promise((resolve, reject) => {
-
-  });
-
-  let ls = (key: string) => new Promise((resolve, reject) => {
-
-  });
-
-  let store = () => Promise.resolve(Object.keys(files));
+  const store = () => Promise.resolve(Object.keys(files));
 
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
   .then(() => console.log('Initial replication'))
