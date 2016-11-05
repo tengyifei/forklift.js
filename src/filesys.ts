@@ -304,7 +304,7 @@ process.on('unhandledRejection', (reason, promise) => {
     console.warn('Warning: Unhandled Promise Rejection, reason: ' + reason);
     if (err.error && err.response) {
       console.warn('Request-Promise Error: ' + err.error.toString());
-      console.warn('Request-Promise Response: ' + JSON.stringify(err.response));
+      console.warn('Request-Promise Response: ' + JSON.stringify(err.response.body));
     }
   }, 10));
 });
