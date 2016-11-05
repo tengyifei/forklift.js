@@ -40,7 +40,7 @@ function request(id: number, api: string, key: string, body?: Buffer): Promise<B
   return <Promise<Buffer>> <any> rp({
     uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
     method: 'POST',
-    headers: { 'sdfs-key': key },
+    headers: { 'sdfs-key': key, 'Content-Type': 'application/octet-stream' },
     body,
     encoding: null,
     gzip: true
@@ -122,8 +122,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   
   app.use(bodyParser.raw({
     inflate: true,
-    limit: '600mb',
-    type: '*/*'
+    limit: '600mb'
   }));
 
   // send our file if possible
@@ -142,10 +141,6 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     let key = req.header('sdfs-key');
     if (key) {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is uploading ${key} to us`);
-      console.log(req.body.constructor.toString());
-      console.log(req.body.toString());
-      console.log(JSON.stringify(req.body));
-      console.log(Object.getOwnPropertyNames(req.body));
       files[key] = new Buffer(req.body);
     } else {
       res.sendStatus(400).send('Must specify sdfs-key');
