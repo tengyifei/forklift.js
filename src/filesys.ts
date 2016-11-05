@@ -88,7 +88,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         appeared = {};
         appearedCount = 0;
       }
-      yield candidate;
+      yield candidate + 1;
     }
   }
 
@@ -99,6 +99,14 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       .filter(x => isNaN(x) !== true);
     activeMembers.forEach(x => activeMembersTable[x] = true);
     return activeMembersTable;
+  }
+
+
+  function* hashKeyActive(key: string) {
+    let activeMembers = getActiveMembers();
+    for (let x of hashKey(key)) {
+      if (activeMembers[x]) yield x;
+    }
   }
 
   /**
@@ -221,10 +229,10 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   });
 
   const put = (key: string, file: Buffer) =>
-    firstFewSuccess(mapItr(hashKey(key), id => () => request(id, 'upload', key, file)), 3);
+    firstFewSuccess(mapItr(hashKeyActive(key), id => () => request(id, 'upload', key, file)), 3);
 
   const get = (key: string) =>
-    sequentialAttempt(mapItr(hashKey(key), id => () => request(id, 'download', key)));
+    sequentialAttempt(mapItr(hashKeyActive(key), id => () => request(id, 'download', key)));
 
   const del = (key: string) => Promise.all(getAllActiveReplicants(key)
     .map(id => request(id, 'delete', key)));
@@ -232,7 +240,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   const ls = async (key: string) => {
     let stored: number[] = [];
     // inserts first 3 servers which has key
-    await firstFewSuccess(mapItr(hashKey(key), id => () =>
+    await firstFewSuccess(mapItr(hashKeyActive(key), id => () =>
       request(id, 'query', key)
       .then(resp => JSON.parse(resp.toString()))
       .then(x => x.present ? x : Promise.reject(`Not found on ${id}`))
