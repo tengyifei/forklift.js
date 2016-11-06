@@ -72,8 +72,8 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
       })();
       // periodically resync with introducer nodes to avoid network division
       let resync = () => {
-        swim.join(hostsToJoin);
-        setTimeout(resync, 950 + Math.random() * 100);
+        swim.join(hostsToJoin, () =>
+          setTimeout(resync, 950 + Math.random() * 100));
       };
       resync();
       // resolve with the bootstrapped swim object
