@@ -306,6 +306,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
           let replicant: number = NaN;
           let nodesWithFile = getAllActiveReplicants(key, downID);
           for (let id of hashKey(key)) {
+            // find the next active node in the probe sequence which does not have this file
             if (activeMembers[id] && nodesWithFile.findIndex(x => x === id) < 0) {
               replicant = id;
               break;
@@ -319,6 +320,8 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
               // try again
               request(replicant, 'push', key);
             });
+          } else {
+            console.log(`Cannot find on-failure replication candidate for ${key}`);
           }
         });
       }

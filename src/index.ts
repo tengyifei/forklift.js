@@ -56,7 +56,6 @@ swimFuture.then(swim => {
     [/members/, () => console.log(`Active nodes: ${
       swim.members()
       .map(x => x.host)
-      .concat(swim.whoami())
       .sort()
       .map(ipToID)
       .join(', ')}`)]]);
