@@ -49,13 +49,9 @@ function request(id: number, api: string, key: string, body?: Buffer): Promise<B
   });
   return makePromise()
   .catch(err => {
-    // attempt to retry for two more times
+    // attempt to retry for one more time
     return Bluebird.delay(30 + Math.random() * 30)
     .then(() => makePromise())
-    .catch(err => {
-      return Bluebird.delay(90 + Math.random() * 90)
-      .then(() => makePromise())
-    })
   });
 }
 
@@ -262,12 +258,12 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
 
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
   .then(() => console.log('Initial replication'))
-  .then(() => Promise.all(  // perform initial replication
+  .then(() => Bluebird.delay(100).then(() => Promise.all(  // perform initial replication
       Object.keys(getActiveMembers())
       .filter(id => +id !== ipToID(swim.whoami()))    // we're not active yet
       .map(id => request(+id, 'list_keys', '')
       .then(resp => JSON.parse(resp.toString()))
-      .then <[number, string[]]> (obj => [+id, obj.keys])))
+      .then <[number, string[]]> (obj => [+id, obj.keys]))))
     .then(allKeys => {
       // group by key
       let keyToNodes: { [key: string]: number[] } = {};
