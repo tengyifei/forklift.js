@@ -68,19 +68,17 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
       encoding: null,
       gzip: false
     });
-    if (body instanceof Buffer || body instanceof String) {
-      streamSize = body.length;
-    } else {
-      if (body.on) body.on('data', data => streamSize += data.length);
-    }
     return <Promise<Buffer>> <any> p;
   };
   return makePromise()  // attempt to retry for one more time
   .catch(err => Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()))
   .then(x => {
+    let length: number = 0;
+    if (api === 'download') length = x.length;
+    if (api === 'upload') length = JSON.parse(x.toString()).len;
     if (initial) {
       console.log(`Time taken: ${ (new Date().getTime() - initial) / 1000 } seconds. Bandwidth: ${
-        streamSize / 1024 / 1024 / ((new Date().getTime() - initial) / 1000) } MB/s`);
+        length / 1024 / 1024 / ((new Date().getTime() - initial) / 1000) } MB/s`);
     }
     return x;
   });
@@ -207,10 +205,13 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is uploading ${key} to us`);
       files[key] = localStorageKey(key);
       let stream = fs.createWriteStream(localStorageKey(key));
-      req.on('data', data => stream.write(data));
+      let totalSize = 0;
+      req.on('data', data => { stream.write(data); totalSize += data.length; });
       req.on('end', () => {
         stream.end();
-        res.sendStatus(200);
+        res.status(200).send({
+          len: totalSize
+        });
       });  
     } else {
       res.status(400).send('Must specify sdfs-key');
