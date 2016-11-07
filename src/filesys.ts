@@ -5,7 +5,6 @@ import * as Swim from 'swim';
 import * as rp from 'request-promise';
 import * as Bluebird from 'bluebird';
 import * as crypto from 'crypto';
-import * as zlib from 'zlib';
 import * as bodyParser from 'body-parser';
 const modexp = require('mod-exp');
 
@@ -19,22 +18,30 @@ function dedupe <T> (input: T[]): T[] {
   return Array.from(map.keys());
 }
 
-function firstFewSuccess <T> (iterator: IterableIterator<() => Promise<T>>, max: number, curr?: number): Promise<T> {
+function firstFewSuccess <T> (iterator: IterableIterator<() => Promise<T>>, max: number, curr?: number): Promise<void> {
   curr = curr || 0;
   if (curr >= max) return Promise.reject(new Error('Must run at least one iteration'));
-  let next = iterator.next();
-  if (typeof next.value === 'undefined') return Promise.reject(new Error('No success'));
-  return next.value()
-  .then(x => curr < max - 1 ? firstFewSuccess(iterator, max, curr + 1) : x)
-  .catch(err => firstFewSuccess(iterator, max, curr));
+  // initial parallelism
+  let initial: Promise<void>[] = [];
+  for (let i = curr; i < max; i++) {
+    let next = iterator.next();
+    if (typeof next.value === 'undefined') return Promise.reject(new Error('No success'));
+    initial.push(next.value().then(() => max -= 1));
+  }
+  let oneMore = () => {
+    if (max === 0) return Promise.resolve();
+    let next = iterator.next();
+    if (typeof next.value === 'undefined') return Promise.reject(new Error('No success'));
+    return next.value().then(() => max -= 1).catch(err => oneMore());
+  }
+  return Promise.all(initial)
+  .catch(err => oneMore());
 }
 
 function sequentialAttempt <T> (promises: (() => Promise<T>)[] | IterableIterator<() => Promise<T>>): Promise<T> {
   let iterator = promises instanceof Array ? promises[Symbol.iterator]() : promises;
   return firstFewSuccess(iterator, 1);
 }
-
-const gzip = Bluebird.promisify(zlib.gzip);
 
 async function request(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
   let initial: number;
@@ -45,20 +52,16 @@ async function request(id: number, api: string, key: string, body?: Buffer): Pro
     console.log(`Uploading ${key} to node ${id}`);
     initial = new Date().getTime();
   }
-  if (body) {
-    body = await gzip(body);
-  }
   let makePromise = () => <Promise<Buffer>> <any> rp({
     uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
     method: 'POST',
     headers: {
       'sdfs-key': key,
       'Content-Type': 'application/octet-stream',
-      'Content-Encoding': 'gzip'
     },
     body,
     encoding: null,
-    gzip: true
+    gzip: false
   });
   return makePromise()  // attempt to retry for one more time
   .catch(err => Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()))
