@@ -64,13 +64,13 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
         'Content-Type': 'application/octet-stream',
       },
       // send body directly if it is not stream
-      body: (<fs.ReadStream> body).on ? undefined : body,
+      body: ((<fs.ReadStream> body).on && (<fs.ReadStream> body).destroy) ? undefined : body,
       encoding: null,
       gzip: false
     });
     // pipe if it is stream
-    if ((<fs.ReadStream> body).on) {
-      (<fs.ReadStream> body).pipe(p);
+    if ((<fs.ReadStream> body).on && (<fs.ReadStream> body).destroy) {
+      p = (<fs.ReadStream> body).pipe(p);
     }
     return <Promise<Buffer>> <any> p;
   };
@@ -187,7 +187,6 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     let key = req.header('sdfs-key');
     if (key && files[key]) {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is downloading ${key} from us`);
-      res.status(200);
       let stream = fs.createReadStream(localStorageKey(key));
       stream.pipe(res);
     } else {
@@ -195,11 +194,8 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }
   });
 
-  // special router for uploads
-  let router = express.Router();
-
   // receives binary and stores it as a buffer
-  router.post('/upload', (req, res) => {
+  app.post('/upload', (req, res) => {
     let key = req.header('sdfs-key');
     if (key) {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is uploading ${key} to us`);
@@ -214,8 +210,6 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       res.status(400).send('Must specify sdfs-key');
     }
   });
-
-  app.use('/', router);
 
   // list all keys under format { keys: [...] }
   app.post('/list_keys', (req, res) => res.send({ keys: Object.keys(files) }));
