@@ -53,7 +53,7 @@ function request(id: number, api: string, key: string, body?: Buffer): Promise<B
   return makePromise()  // attempt to retry for one more time
   .catch(err => Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()))
   .then(x => { if (initial) console.log(`Time taken: ${ (new Date().getTime() - initial) / 1000 } seconds. Bandwidth: ${
-    x.length / 1024 / 1024 / ((new Date().getTime() - initial) / 1000) } MB/s`) });
+    x.length / 1024 / 1024 / ((new Date().getTime() - initial) / 1000) } MB/s`); return x; });
 }
 
 export const fileSystemProtocol = swimFuture.then(async swim => {
