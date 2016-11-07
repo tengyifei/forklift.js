@@ -43,7 +43,7 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
         // error handling, retry
         console.error(err);
         swim.leave();
-        setTimeout(() => doBootstrap((failed || 0) + 1), 950 + Math.random() * 100);
+        setTimeout(() => doBootstrap((failed || 0) + 1), 550 + Math.random() * 100);
         return;
       }
       // ready

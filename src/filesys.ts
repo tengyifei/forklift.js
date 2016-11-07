@@ -259,8 +259,10 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     return request(id, api, key, body)
     .catch(err => Bluebird.delay(200 + Math.random() * 100).then(() =>
       request(id, api, key, body)
-      .catch(err => Bluebird.delay(200 + Math.random() * 100).then(() =>
-        request(id, api, key, body)))));
+      .catch(err => Bluebird.delay(300 + Math.random() * 100).then(() =>
+        request(id, api, key, body))
+        .catch(err => Bluebird.delay(400 + Math.random() * 100).then(() =>
+          request(id, api, key, body))))));
   }
 
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
