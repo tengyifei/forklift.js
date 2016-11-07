@@ -68,10 +68,10 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
       encoding: null,
       gzip: false
     });
-    if (body instanceof Buffer) {
+    if (body instanceof Buffer || body instanceof String) {
       streamSize = body.length;
     } else {
-      body.on('data', data => streamSize += data.length);
+      if (body.on) body.on('data', data => streamSize += data.length);
     }
     return <Promise<Buffer>> <any> p;
   };
