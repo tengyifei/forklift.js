@@ -5,6 +5,7 @@ import * as Swim from 'swim';
 import * as rp from 'request-promise';
 import * as Bluebird from 'bluebird';
 import * as crypto from 'crypto';
+import * as zlib from 'zlib';
 import * as bodyParser from 'body-parser';
 const modexp = require('mod-exp');
 
@@ -33,7 +34,9 @@ function sequentialAttempt <T> (promises: (() => Promise<T>)[] | IterableIterato
   return firstFewSuccess(iterator, 1);
 }
 
-function request(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
+const gzip = Bluebird.promisify(zlib.gzip);
+
+async function request(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
   let initial: number;
   if (api === 'download') {
     console.log(`Downloading ${key} from node ${id}`);
@@ -42,10 +45,17 @@ function request(id: number, api: string, key: string, body?: Buffer): Promise<B
     console.log(`Uploading ${key} to node ${id}`);
     initial = new Date().getTime();
   }
+  if (body) {
+    body = await gzip(body);
+  }
   let makePromise = () => <Promise<Buffer>> <any> rp({
     uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
     method: 'POST',
-    headers: { 'sdfs-key': key, 'Content-Type': 'application/octet-stream' },
+    headers: {
+      'sdfs-key': key,
+      'Content-Type': 'application/octet-stream',
+      'Content-Encoding': 'gzip'
+    },
     body,
     encoding: null,
     gzip: true
