@@ -39,13 +39,23 @@ function request(id: number, api: string, key: string, body?: Buffer): Promise<B
   } else if (api === 'upload') {
     console.log(`Uploading ${key} to node ${id}`);
   }
-  return <Promise<Buffer>> <any> rp({
+  let makePromise = () => <Promise<Buffer>> <any> rp({
     uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
     method: 'POST',
     headers: { 'sdfs-key': key, 'Content-Type': 'application/octet-stream' },
     body,
     encoding: null,
     gzip: true
+  });
+  return makePromise()
+  .catch(err => {
+    // attempt to retry for two more times
+    return Bluebird.delay(30 + Math.random() * 30)
+    .then(() => makePromise())
+    .catch(err => {
+      return Bluebird.delay(90 + Math.random() * 90)
+      .then(() => makePromise())
+    })
   });
 }
 
@@ -295,6 +305,10 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
           return Promise.all(prs);
         })));
     }))
+  .catch(err => {
+    console.error(`Failed to replicate`);
+    process.exit(-1);
+  })
   .then(() =>   // enable on-failure replication
     swim.on(Swim.EventType.Change, update => {
       if (update.state === MemberState.Faulty) {
