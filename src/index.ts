@@ -67,8 +67,7 @@ fileSystemProtocol.then(filesys => {
 
   terminalCommands = terminalCommands.concat([
     [/^put (\S+) (\S+)$/, (local, remote) =>
-      Bluebird.promisify(fs.readFile)(local)
-      .then(buff => put(remote, buff))
+      put(remote, fs.createReadStream(local))
       .then(() => console.log(`${local} uploaded as ${remote}`))],
     [/^get (\S+) (\S+)$/, (remote, local) =>
       get(remote)

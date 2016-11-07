@@ -6,7 +6,10 @@ import * as rp from 'request-promise';
 import * as Bluebird from 'bluebird';
 import * as crypto from 'crypto';
 import * as bodyParser from 'body-parser';
+import * as fs from 'fs';
 const modexp = require('mod-exp');
+
+const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
 
 function* mapItr <T, R> (input: IterableIterator<T>, fn: (x: T) => R) {
   for (let x of input) yield fn(x);
@@ -43,7 +46,7 @@ function sequentialAttempt <T> (promises: (() => Promise<T>)[] | IterableIterato
   return firstFewSuccess(iterator, 1);
 }
 
-async function request(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
+async function request(id: number, api: string, key: string, body?: Buffer | fs.ReadStream): Promise<Buffer> {
   let initial: number;
   if (api === 'download') {
     console.log(`Downloading ${key} from node ${id}`);
@@ -52,17 +55,25 @@ async function request(id: number, api: string, key: string, body?: Buffer): Pro
     console.log(`Uploading ${key} to node ${id}`);
     initial = new Date().getTime();
   }
-  let makePromise = () => <Promise<Buffer>> <any> rp({
-    uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
-    method: 'POST',
-    headers: {
-      'sdfs-key': key,
-      'Content-Type': 'application/octet-stream',
-    },
-    body,
-    encoding: null,
-    gzip: false
-  });
+  let makePromise = () => {
+    let p = rp({
+      uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
+      method: 'POST',
+      headers: {
+        'sdfs-key': key,
+        'Content-Type': 'application/octet-stream',
+      },
+      // send body directly if it is not stream
+      body: (<fs.ReadStream> body).on ? undefined : body,
+      encoding: null,
+      gzip: false
+    });
+    // pipe if it is stream
+    if ((<fs.ReadStream> body).on) {
+      (<fs.ReadStream> body).pipe(p);
+    }
+    return <Promise<Buffer>> <any> p;
+  };
   return makePromise()  // attempt to retry for one more time
   .catch(err => Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()))
   .then(x => { if (initial) console.log(`Time taken: ${ (new Date().getTime() - initial) / 1000 } seconds. Bandwidth: ${
@@ -71,11 +82,17 @@ async function request(id: number, api: string, key: string, body?: Buffer): Pro
 
 export const fileSystemProtocol = swimFuture.then(async swim => {
   interface Dictionary {
-    [key: string]: Buffer;
+    [key: string]: string;
   }
   const app = express();
   const files: Dictionary = {};
   const inFlightReplication: {[key: string] : boolean} = {};
+
+  function localStorageKey(key: string) {
+    const sha1sum = crypto.createHash('sha1');
+    sha1sum.update(key);
+    return `store/${sha1sum.digest('hex')}`;
+  }
 
   /**
    * probing strategy for a node
@@ -164,34 +181,41 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
    */
   const filesLostOnNode = (id: number) => Object.keys(files)
       .filter(k => getAllActiveReplicants(k, id).findIndex(x => x === id) >= 0);
-  
-  app.use(bodyParser.raw({
-    inflate: true,
-    limit: '600mb'
-  }));
 
   // send our file if possible
   app.post('/download', (req, res) => {
     let key = req.header('sdfs-key');
     if (key && files[key]) {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is downloading ${key} from us`);
-      res.send(files[key]);
+      res.status(200);
+      let stream = fs.createReadStream(localStorageKey(key));
+      stream.pipe(res);
     } else {
       res.status(404).send('Not found: ' + key);
     }
   });
 
+  // special router for uploads
+  let router = express.Router();
+
   // receives binary and stores it as a buffer
-  app.post('/upload', (req, res) => {
+  router.post('/upload', (req, res) => {
     let key = req.header('sdfs-key');
     if (key) {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is uploading ${key} to us`);
-      files[key] = req.body;
-      res.sendStatus(200);
+      files[key] = localStorageKey(key);
+      let stream = fs.createWriteStream(localStorageKey(key));
+      req.on('data', data => stream.write(data));
+      req.on('end', () => {
+        stream.end();
+        res.sendStatus(200);
+      });  
     } else {
       res.status(400).send('Must specify sdfs-key');
     }
   });
+
+  app.use('/', router);
 
   // list all keys under format { keys: [...] }
   app.post('/list_keys', (req, res) => res.send({ keys: Object.keys(files) }));
@@ -211,10 +235,11 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
           .map(id =>
             () => request(id, 'download', key)
         ))
-        .then(content => {
-          files[key] = content;
+        .then(content => writeFile(localStorageKey(key), content))
+        .then(() => {
+          files[key] = localStorageKey(key);
           inFlightReplication[key] = false;
-          res.status(200);
+          res.sendStatus(200);
         })
         .catch(err =>
           res.status(500).send('On-failure replication errorred: ' + JSON.stringify(err)));
@@ -246,7 +271,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }
   });
 
-  const put = (key: string, file: Buffer) =>
+  const put = (key: string, file: fs.ReadStream) =>
     firstFewSuccess(mapItr(hashKeyActive(key), id => () => request(id, 'upload', key, file)), 3);
 
   const get = (key: string) =>
@@ -305,7 +330,8 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         .map(k =>
           sequentialAttempt(keyToNodes[k]   // try all nodes which have k
             .map(id => () => requestInitial(id, 'download', k)))   // replicate
-          .then(buf => files[k] = buf)))
+          .then(buf => writeFile(localStorageKey(k), buf))
+          .then(() => files[k] = localStorageKey(k))))
       .then(() => Promise.all(   // delete extra replica
         Object.keys(files).map(k => {
           keyToNodes[k].push(ourID);
