@@ -22,20 +22,20 @@ function firstFewSuccess <T> (iterator: IterableIterator<() => Promise<T>>, max:
   curr = curr || 0;
   if (curr >= max) return Promise.reject(new Error('Must run at least one iteration'));
   // initial parallelism
-  let initial: Promise<void>[] = [];
+  let initial: Promise<T>[] = [];
   for (let i = curr; i < max; i++) {
     let next = iterator.next();
     if (typeof next.value === 'undefined') return Promise.reject(new Error('No success'));
-    initial.push(next.value().then(() => max -= 1));
+    initial.push(next.value());
   }
-  let oneMore = () => {
-    if (max === 0) return Promise.resolve();
+  let oneMore = (): Promise<T> => {
     let next = iterator.next();
     if (typeof next.value === 'undefined') return Promise.reject(new Error('No success'));
-    return next.value().then(() => max -= 1).catch(err => oneMore());
+    return next.value().catch(err => oneMore());
   }
   return Promise.all(initial)
-  .catch(err => oneMore());
+  .catch(err => oneMore())
+  .then(vals => vals[0]);
 }
 
 function sequentialAttempt <T> (promises: (() => Promise<T>)[] | IterableIterator<() => Promise<T>>): Promise<T> {
