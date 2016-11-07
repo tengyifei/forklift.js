@@ -314,6 +314,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
           }
           if (isNaN(replicant) !== true) {
             // instruct replicant to grab file
+            console.log(`Requesting ${replicant} to backup ${key}`);
             request(replicant, 'push', key)
             .catch(err => {
               console.error('Push failure: ', JSON.stringify(err));
