@@ -34,10 +34,13 @@ function sequentialAttempt <T> (promises: (() => Promise<T>)[] | IterableIterato
 }
 
 function request(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
+  let initial: number;
   if (api === 'download') {
     console.log(`Downloading ${key} from node ${id}`);
+    initial = new Date().getTime();
   } else if (api === 'upload') {
     console.log(`Uploading ${key} to node ${id}`);
+    initial = new Date().getTime();
   }
   let makePromise = () => <Promise<Buffer>> <any> rp({
     uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
@@ -48,7 +51,9 @@ function request(id: number, api: string, key: string, body?: Buffer): Promise<B
     gzip: true
   });
   return makePromise()  // attempt to retry for one more time
-  .catch(err => Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()));
+  .catch(err => Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()))
+  .then(x => { if (initial) console.log(`Time taken: ${ (new Date().getTime() - initial) / 1000 } seconds. Bandwidth: ${
+    x.length / 1024 / 1024 / ((new Date().getTime() - initial) / 1000) } MB/s`) });
 }
 
 export const fileSystemProtocol = swimFuture.then(async swim => {
