@@ -47,12 +47,8 @@ function request(id: number, api: string, key: string, body?: Buffer): Promise<B
     encoding: null,
     gzip: true
   });
-  return makePromise()
-  .catch(err => {
-    // attempt to retry for one more time
-    return Bluebird.delay(30 + Math.random() * 30)
-    .then(() => makePromise())
-  });
+  return makePromise()  // attempt to retry for one more time
+  .catch(err => Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()));
 }
 
 export const fileSystemProtocol = swimFuture.then(async swim => {
@@ -256,12 +252,20 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
 
   const store = () => Promise.resolve(Object.keys(files));
 
+  /**
+   * Try super hard during initial replication since the file system may not be set up yet.
+   */
+  function requestInitial(id: number, api: string, key: string, body?: Buffer): Promise<Buffer> {
+    return request(id, api, key, body)
+    .catch(err => Bluebird.delay(200).then(() => request(id, api, key, body)));
+  }
+
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
   .then(() => console.log('Initial replication'))
   .then(() => Bluebird.delay(100).then(() => Promise.all(  // perform initial replication
       Object.keys(getActiveMembers())
       .filter(id => +id !== ipToID(swim.whoami()))    // we're not active yet
-      .map(id => request(+id, 'list_keys', '')
+      .map(id => requestInitial(+id, 'list_keys', '')
       .then(resp => JSON.parse(resp.toString()))
       .then <[number, string[]]> (obj => [+id, obj.keys]))))
     .then(allKeys => {
@@ -279,7 +283,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         .filter(k => getAllIdealReplicants(k).findIndex(x => x === ourID) >= 0)
         .map(k =>
           sequentialAttempt(keyToNodes[k]   // try all nodes which have k
-            .map(id => () => request(id, 'download', k)))   // replicate
+            .map(id => () => requestInitial(id, 'download', k)))   // replicate
           .then(buf => files[k] = buf)))
       .then(() => Promise.all(   // delete extra replica
         Object.keys(files).map(k => {
@@ -294,7 +298,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
               if (idx >= extraNodes.length) idx = extraNodes.length - 1;
               if (idx < 0) break;
               // delete file
-              prs.push(request(extraNodes[idx], 'delete', k));
+              prs.push(requestInitial(extraNodes[idx], 'delete', k));
               extraNodes = extraNodes.filter((_, j) => j !== idx);
             }
           }
