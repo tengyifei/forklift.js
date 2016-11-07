@@ -177,7 +177,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is downloading ${key} from us`);
       res.send(files[key]);
     } else {
-      res.sendStatus(404).send('Not found: ' + key);
+      res.status(404).send('Not found: ' + key);
     }
   });
 
@@ -189,14 +189,12 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       files[key] = new Buffer(req.body);
       res.sendStatus(200);
     } else {
-      res.sendStatus(400).send('Must specify sdfs-key');
+      res.status(400).send('Must specify sdfs-key');
     }
   });
 
   // list all keys under format { keys: [...] }
-  app.post('/list_keys', (req, res) => {
-    res.send({ keys: Object.keys(files) });
-  });
+  app.post('/list_keys', (req, res) => res.send({ keys: Object.keys(files) }));
 
   // tells us we should replicate this file, when a node goes down
   app.post('/push', (req, res) => {
@@ -216,13 +214,13 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         .then(content => {
           files[key] = content;
           inFlightReplication[key] = false;
-          res.sendStatus(200);
+          res.status(200);
         })
         .catch(err =>
-          res.sendStatus(500).send('On-failure replication errorred: ' + JSON.stringify(err)));
+          res.status(500).send('On-failure replication errorred: ' + JSON.stringify(err)));
       }
     } else {
-      res.sendStatus(400).send('Must specify sdfs-key');
+      res.status(400).send('Must specify sdfs-key');
     }
   });
 
@@ -232,7 +230,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     if (key) {
       res.send({ present: !!files[key] });
     } else {
-      res.sendStatus(400).send('Must specify sdfs-key');
+      res.status(400).send('Must specify sdfs-key');
     }
   });
 
@@ -244,7 +242,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       res.send({ deleted: !!files[key] });
       delete files[key];
     } else {
-      res.sendStatus(400).send('Must specify sdfs-key');
+      res.status(400).send('Must specify sdfs-key');
     }
   });
 
