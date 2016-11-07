@@ -63,15 +63,10 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
         'sdfs-key': key,
         'Content-Type': 'application/octet-stream',
       },
-      // send body directly if it is not stream
-      body: ((<fs.ReadStream> body).on && (<fs.ReadStream> body).destroy) ? undefined : body,
+      body: body,
       encoding: null,
       gzip: false
     });
-    // pipe if it is stream
-    if ((<fs.ReadStream> body).on && (<fs.ReadStream> body).destroy) {
-      p = (<fs.ReadStream> body).pipe(p);
-    }
     return <Promise<Buffer>> <any> p;
   };
   return makePromise()  // attempt to retry for one more time
