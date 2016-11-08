@@ -21,23 +21,23 @@ function dedupe <T> (input: T[]): T[] {
   return Array.from(map.keys());
 }
 
-function firstFewSuccess <T> (iterator: IterableIterator<() => Promise<T>>, max: number, curr?: number): Promise<void> {
+function firstFewSuccess <T> (iterator: IterableIterator<() => Promise<T>>, max: number, curr?: number, lastErr?: any): Promise<void> {
   curr = curr || 0;
   if (curr >= max) return Promise.reject(new Error('Must run at least one iteration'));
   // initial parallelism
   let initial: Promise<T>[] = [];
   for (let i = curr; i < max; i++) {
     let next = iterator.next();
-    if (typeof next.value === 'undefined') return Promise.reject(new Error('No success'));
+    if (typeof next.value === 'undefined') return Promise.reject(lastErr || new Error('No success'));
     initial.push(next.value());
   }
-  let oneMore = (): Promise<T> => {
+  let oneMore = (err?: any): Promise<T> => {
     let next = iterator.next();
-    if (typeof next.value === 'undefined') return Promise.reject(new Error('No success'));
-    return next.value().catch(err => oneMore());
+    if (typeof next.value === 'undefined') return Promise.reject(lastErr || new Error('No success'));
+    return next.value().catch(err => oneMore(err));
   }
   return Promise.all(initial)
-  .catch(err => oneMore())
+  .catch(err => oneMore(err))
   .then(vals => vals[0]);
 }
 
