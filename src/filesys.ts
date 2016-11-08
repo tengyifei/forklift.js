@@ -219,7 +219,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         res.status(200).send({
           len: totalSize
         });
-      });  
+      });
     } else {
       res.status(400).send('Must specify sdfs-key');
     }

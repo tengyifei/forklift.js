@@ -38,6 +38,7 @@
     "swim": "^0.3.1",
     "through2": "^2.0.1",
     "typescript": "^2.0.3",
-    "vinyl": "^2.0.0"
+    "vinyl": "^2.0.0",
+    "webworker-threads": "^0.7.8"
   }
 }
