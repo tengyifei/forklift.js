@@ -313,6 +313,19 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
 
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
   .then(() => console.log('Initial replication'))
+  .then(() => {
+    // set up global error handlers
+    process.on('unhandledRejection', (reason, promise) => {
+      promise.catch(err => setTimeout(() => {
+        console.warn('Warning: Unhandled Promise Rejection, reason: ' + reason);
+        if (err.error && err.response) {
+          console.warn('Request-Promise Error: ' + err.error.toString());
+          console.warn('Request-Promise Response: ' + JSON.stringify(err.response.body));
+        }
+      }, 10));
+    });
+    process.on('rejectionHandled', () => { });
+  })
   .then(() => Bluebird.delay(100).then(() => Promise.all(  // perform initial replication
       Object.keys(getActiveMembers())
       .filter(id => +id !== ipToID(swim.whoami()))    // we're not active yet
@@ -397,15 +410,3 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     put, get, del, ls, store
   }));
 });
-
-process.on('unhandledRejection', (reason, promise) => {
-  promise.catch(err => setTimeout(() => {
-    console.warn('Warning: Unhandled Promise Rejection, reason: ' + reason);
-    if (err.error && err.response) {
-      console.warn('Request-Promise Error: ' + err.error.toString());
-      console.warn('Request-Promise Response: ' + JSON.stringify(err.response.body));
-    }
-  }, 10));
-});
-
-process.on('rejectionHandled', () => { });
