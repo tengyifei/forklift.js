@@ -70,9 +70,11 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
     });
     return <Promise<Buffer>> <any> p;
   };
-  return makePromise()  // attempt to retry for one more time
+  return makePromise() 
   .catch(err => {
-    console.log(JSON.stringify(err)); 
+    // 404 is definitely an error
+    if (err.name === 'StatusCodeError' && err.statusCode === 404) throw err;
+     // attempt to retry for one more time 
     return Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()); })
   .then(x => {
     let length: number = 0;
