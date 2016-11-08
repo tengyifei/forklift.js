@@ -4,9 +4,14 @@ import * as Swim from 'swim';
 import * as fs from 'fs';
 import { Command, Exit, runConsole } from './command';
 import { fileSystemProtocol } from './filesys';
+import { paxos } from './paxos';
+import { maplejuice } from './maplejuice';
 import * as Bluebird from 'bluebird';
 
-let terminalCommands: [RegExp, Function][] = [];
+let terminalCommands: [RegExp, Function][] = [
+  [/^help$/, () =>
+    console.log(`Available commands: ${terminalCommands.map(([regex, _]) => regex.toString()).join(' ')}`)]
+];
 
 let matchCommand: (x: string, y: [RegExp, Function][]) => void
   = (command, functions) => {
@@ -82,4 +87,12 @@ fileSystemProtocol.then(filesys => {
     [/^store$/, () =>
       store().then(files =>
         console.log(`We store:\n` + files.map(x => `\t${x}`).join('\n')))]]);
+});
+
+paxos.then(pax => {
+  console.log('Leader election initialized');
+});
+
+maplejuice.then(mj => {
+  console.log('Map-reduce initialized');
 });

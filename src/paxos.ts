@@ -1,0 +1,1 @@
+export const paxos = Promise.resolve();
