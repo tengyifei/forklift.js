@@ -22,11 +22,13 @@ export let runConsole = (processor: (x: Input) => void) => {
   // cache the command
   let input = '';
 
+  const prompt = 'MapleJuice >';
+
   // command input
-  console.log('SDFS> ');
+  console.log(prompt);
   let outputx = 0, outputy = 2;
 
-  let inputx = 6;
+  let inputx = prompt.length;
 
   stdin.on('data', key => {
     if (key.toString() === '\r') {
@@ -37,14 +39,14 @@ export let runConsole = (processor: (x: Input) => void) => {
       }
       // enter key
       input = '';
-      inputx = 6;
+      inputx = prompt.length;
       // clear command
       charm.position(0, 0);
       charm.erase('line');
-      charm.write('SDFS> ');
+      charm.write(prompt);
     } else if (key.toString() === '\u007f') {
       // backspace
-      if (inputx > 6) {
+      if (inputx > prompt.length) {
         charm.position(inputx, 0);
         charm.erase('end');
         input = input.substr(0, input.length - 1);
@@ -88,7 +90,7 @@ export let runConsole = (processor: (x: Input) => void) => {
         // clear
         charm.position(0, 0);
         charm.erase('line');
-        charm.write('SDFS> ');
+        charm.write(prompt);
         charm.write(input);
         // continue the chain
         resolve();
