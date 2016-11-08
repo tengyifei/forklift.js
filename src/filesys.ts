@@ -7,8 +7,11 @@ import * as Bluebird from 'bluebird';
 import * as crypto from 'crypto';
 import * as bodyParser from 'body-parser';
 import * as fs from 'fs';
+import * as mkdirp from 'mkdirp';
+import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
 
+const storeLocation = 'store';
 const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
 
 function* mapItr <T, R> (input: IterableIterator<T>, fn: (x: T) => R) {
@@ -99,7 +102,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   function localStorageKey(key: string) {
     const sha1sum = crypto.createHash('sha1');
     sha1sum.update(key);
-    return `store/${sha1sum.digest('hex')}`;
+    return `${storeLocation}/${sha1sum.digest('hex')}`;
   }
 
   /**
@@ -313,6 +316,11 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
 
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
   .then(() => console.log('Initial replication'))
+  .then(async () => {
+    // recreate data folder
+    await Bluebird.promisify(rimraf)(storeLocation);
+    await Bluebird.promisify(mkdirp)(storeLocation);
+  })
   .then(() => {
     // set up global error handlers
     process.on('unhandledRejection', (reason, promise) => {
@@ -373,7 +381,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }))
   .catch(err => {
     console.error(`Failed to replicate`);
-    process.exit(-1);
+    setTimeout(() => process.exit(-1), 50);
   })
   .then(() =>   // enable on-failure replication
     swim.on(Swim.EventType.Change, update => {
