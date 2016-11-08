@@ -33,7 +33,7 @@ function firstFewSuccess <T> (iterator: IterableIterator<() => Promise<T>>, max:
   }
   let oneMore = (err?: any): Promise<T> => {
     let next = iterator.next();
-    if (typeof next.value === 'undefined') return Promise.reject(lastErr || new Error('No success'));
+    if (typeof next.value === 'undefined') return Promise.reject(err || new Error('No success'));
     return next.value().catch(err => oneMore(err));
   }
   return Promise.all(initial)
