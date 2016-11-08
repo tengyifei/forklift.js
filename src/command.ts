@@ -22,7 +22,7 @@ export let runConsole = (processor: (x: Input) => void) => {
   // cache the command
   let input = '';
 
-  const prompt = 'MapleJuice >';
+  const prompt = 'MapleJuice> ';
 
   // command input
   console.log(prompt);
@@ -52,7 +52,7 @@ export let runConsole = (processor: (x: Input) => void) => {
         input = input.substr(0, input.length - 1);
         inputx -= 1;
       } else {
-        charm.position(7, 0);
+        charm.position(prompt.length + 1, 0);
       }
     } else {
       // hack for charm problem. filter out undisplayable characters
