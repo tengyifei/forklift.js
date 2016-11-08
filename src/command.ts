@@ -108,6 +108,7 @@ export let runConsole = (processor: (x: Input) => void) => {
     }
   })();
 
+  console.warn = patch(console.warn);
   console.debug = patch(console.debug);
   console.log = patch(console.log);
   console.error = patch(console.error);
