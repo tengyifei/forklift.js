@@ -71,7 +71,9 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
     return <Promise<Buffer>> <any> p;
   };
   return makePromise()  // attempt to retry for one more time
-  .catch(err => Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()))
+  .catch(err => {
+    console.log(JSON.stringify(err)); 
+    return Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()); })
   .then(x => {
     let length: number = 0;
     if (api === 'download') length = x.length;
