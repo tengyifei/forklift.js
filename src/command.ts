@@ -98,11 +98,13 @@ export let runConsole = (processor: (x: Input) => void) => {
     }));
 
   let unpatch = (() => {
+    let oldWarn = console.warn;
     let oldDebug = console.debug;
     let oldLog = console.log;
     let oldError = console.error;
     let oldInfo = console.info;
     return () => {
+      console.warn = oldWarn;
       console.debug = oldDebug;
       console.log = oldLog;
       console.error = oldError;

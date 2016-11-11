@@ -18,6 +18,9 @@ function* mapItr <T, R> (input: IterableIterator<T>, fn: (x: T) => R) {
   for (let x of input) yield fn(x);
 }
 
+/**
+ * Removes the duplicate copies of elements in an array
+ */
 function dedupe <T> (input: T[]): T[] {
   let map = new Map<T, boolean>();
   input.forEach(t => map.set(t, true));
@@ -340,6 +343,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       .filter(id => +id !== ipToID(swim.whoami()))    // we're not active yet
       .map(id => requestInitial(+id, 'list_keys', '')
       .then(resp => JSON.parse(resp.toString()))
+      .catch(err => ({ keys: [] }))   // some nodes may go down, we assume they have nothing
       .then <[number, string[]]> (obj => [+id, obj.keys]))))
     .then(allKeys => {
       // group by key
