@@ -35,26 +35,33 @@ describe('Partition dataset', function () {
     for (let i = 100; i < 150; i++) {
       let words = [];
       let line = [];
-      for (let j = 0; j < 50000; j++) {
+      let allLinesFile = [];
+      for (let j = 0; j < 100000; j++) {
         let randomWord = makeid();
         words.push(randomWord);
         line.push(randomWord);
         if (Math.random() < 0.09) {
           words.push('\n');
-          allLines.push(line.join(' '));
+          let joinLine = line.join(' ');
+          if (joinLine !== '') {
+            allLines.push(joinLine);
+            allLinesFile.push(joinLine);
+          }
           line = [];
         }
       }
       await (<(x: string, y: string) => Promise<void>> <any> Bluebird.promisify(fs.writeFile))
-        (`${testFolder}/${i}`, words.join(' '));
+        (`${testFolder}/${i}`, allLinesFile.join('\n'));
+      allLinesFile = [];
     }
   });
 
   async function verifyPartition(streams: Stream.Readable[]) {
     let allDataArr = await Bluebird.all(streams.map(streamToPromise));
     let allData = Buffer.concat(allDataArr);
-    let myLines = allData.toString().split('\n');
-    expect(myLines).to.deep.equal(allLines);
+    let myLines = allData.toString().split('\n').filter(x => x !== '');
+    expect(myLines.length).to.equal(allLines.length);
+    myLines.forEach((line, idx) => expect(line).to.equal(allLines[idx]));
   }
 
   it('partitions correctly (one)', function () {
@@ -65,7 +72,15 @@ describe('Partition dataset', function () {
     return verifyPartition(partitionDataset(testFolder, 2));
   });
 
+  it('partitions correctly (ten)', function () {
+    return verifyPartition(partitionDataset(testFolder, 10));
+  });
+
   it('partitions correctly (many)', function () {
     return verifyPartition(partitionDataset(testFolder, 300));
+  });
+
+  it('partitions correctly (too many)', function () {
+    return verifyPartition(partitionDataset(testFolder, 30000));
   });
 });

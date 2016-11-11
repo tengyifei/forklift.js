@@ -9,8 +9,8 @@ const stat = Bluebird.promisify(fs.stat);
 export function partitionDataset(dataset: string, numPartition: number): stream.Readable[] {
   // get all files in dataset along with their size
   let allFiles = readdir(dataset)
-  .then(files => Promise.all(files.map(file =>
-    stat(file).then(st => <[string, fs.Stats]> [path.join(dataset, file), st]))))
+  .then(files => Promise.all(files.map(file => path.join(dataset, file)).map(file =>
+    stat(file).then(st => <[string, fs.Stats]> [file, st]))))
   .then(filestats => filestats
     .filter(([_, stat]) => stat.isFile())
     .map(([file, stat]) => <[string, number]> [ file, stat.size ]));
@@ -19,7 +19,7 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
 
     readyHandlers: Function[];
 
-    constructor(options) {
+    constructor(options?: any) {
       super(options);
       this.readyHandlers = [];
     }
@@ -46,13 +46,13 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
     }
 
   }
-  let streams = Array(numPartition).map((_, idx) => new PartitionedStream(idx));
+  const streams = Array.apply(null, Array(numPartition)).map(() => new PartitionedStream());
 
   // get a rough partition of the files
   // actual partition may vary due to the exact position of new lines
   let roughPartition = allFiles
   .then(filestats => {
-    let sizes = filestats.map((_, size) => size);
+    let sizes = filestats.map(([_, size]) => size);
     let totalSize = sizes.reduce((a, b) => a + b, 0);
     let individualSize = Math.round(totalSize / numPartition);
     let fileStream: fs.ReadStream[] = [];
@@ -60,13 +60,13 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
     
     // pipe everything sequentially into our writable stream
     let masterStream = new MasterStream();
-    fileStream[0].pipe(masterStream, { end: false });
+    fileStream[0].pipe(masterStream, { end: filestats.length === 1 });
     for (let i = 0; i < filestats.length - 1; i++) {
       fileStream[i].on('end', (idx => () =>
         // separate files with newline
         masterStream.write(new Buffer('\n'), () =>
           // pipe next file
-          fileStream[idx + 1].pipe(masterStream, { end: false }))
+          fileStream[idx + 1].pipe(masterStream, { end: idx + 1 === filestats.length - 1 }))
       )(i));
     }
 
@@ -85,13 +85,11 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
 
     bytesReceived: number;
     currParition: number;
-    currBytesIntoPartition: number;
 
     constructor(options?: any) {
       super(options);
       this.bytesReceived = 0;
       this.currParition = 0;
-      this.currBytesIntoPartition = 0;
     }
 
     _write(chunk: Buffer, encoding: string, callback: Function): void {
@@ -102,7 +100,7 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
           // we're at last partition, just send whatever we have
           stream.onReady(callback);
           stream.enqueue(chunk);
-        } else if (this.bytesReceived > this.currParition * individualSize - lookAheadSize) {
+        } else if (this.bytesReceived > (this.currParition + 1) * individualSize - lookAheadSize) {
           // need to scan for new line and terminate partition
           let newlineIndex = chunk.findIndex(v => v === newlineChar);
           if (newlineIndex !== -1) {
@@ -127,6 +125,7 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
           stream.onReady(callback);
           stream.enqueue(chunk);
         }
+        // console.log(`${this.bytesReceived} + ${chunk.length} = ${this.bytesReceived + chunk.length}`);
         this.bytesReceived += chunk.length;
       });
     }
