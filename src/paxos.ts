@@ -42,13 +42,13 @@ interface PaxosTwowayPacket {
 }
 
 interface OnewayPayload {
-  index: decimal.Decimal;
+  index: string;
   leader: number;
   type: 'accept' | 'learn';
 }
 
 interface PreparePayload {
-  index: decimal.Decimal;
+  index: string;
   leader: number;
   type: 'prepare';
 }
@@ -143,8 +143,9 @@ export const paxos = swimFuture.then(async swim => {
   // called when we receive a request
   // need to acknowledge by calling sendResponse
   function onPaxosRequest(sendResponse: (payload: PrepareResponse) => void, payload: PreparePayload) {
-    if (payload.index.comparedTo(maxPromiseIndex) > 0) {
-      maxPromiseIndex = payload.index;
+    let index = new Decimal(payload.index);
+    if (index.comparedTo(maxPromiseIndex) > 0) {
+      maxPromiseIndex = index;
       maxPrepareRequest = payload;
     }
     // ack with highest prepare request
@@ -156,10 +157,11 @@ export const paxos = swimFuture.then(async swim => {
 
   function onPaxosOnewayRequest(payload: OnewayPayload) {
     // don't accept if we promised not to
-    if (payload.index.comparedTo(maxPromiseIndex) < 0) {
+    let index = new Decimal(payload.index);
+    if (index.comparedTo(maxPromiseIndex) < 0) {
       // do nothing
     } else {
-      maxPromiseIndex = payload.index;
+      maxPromiseIndex = index;
       if (payload.type === 'accept') {
         // accept it
         updateLeaderId(payload.leader);
@@ -192,7 +194,7 @@ export const paxos = swimFuture.then(async swim => {
     let prepareRequest: PreparePayload = {
       type: 'prepare',
       leader: id,
-      index: ourPromiseIndex
+      index: ourPromiseIndex.toString()
     };
     // try proposing
     let responses =
@@ -209,7 +211,9 @@ export const paxos = swimFuture.then(async swim => {
       let highest = max(validResponses.map(x => x[1]), (a, b) => {
         if (a.highestCandidate) {
           if (b.highestCandidate) {
-            return a.highestCandidate.index.comparedTo(b.highestCandidate.index) > 0;
+            let indexA = new Decimal(a.highestCandidate.index);
+            let indexB = new Decimal(b.highestCandidate.index);
+            return indexA.comparedTo(indexB) > 0;
           } else {
             return true;
           }
