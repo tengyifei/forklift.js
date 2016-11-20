@@ -21,10 +21,10 @@ export default bootstrapDNS.then(() => new Promise<Swim>((resolve, reject) => {
     },
     codec: 'msgpack', // optional
     disseminationFactor: 15, // optional
-    interval: 200, // optional
+    interval: 400, // optional
     joinTimeout: 200, // optional
-    pingTimeout: 70, // optional
-    pingReqTimeout: 90, // optional
+    pingTimeout: 150, // optional
+    pingReqTimeout: 200, // optional
     pingReqGroupSize: 3, // optional
     udp: { maxDgramSize: 768 } // optional
   };
