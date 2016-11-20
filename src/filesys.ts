@@ -57,14 +57,14 @@ async function request(
   api: string,
   key: string,
   body?: Buffer | fs.ReadStream,
-  writeStreamProvider?: () => fs.WriteStream): Promise<number | Buffer> {
-  let initial: number;
+  writeStreamProvider?: () => fs.WriteStream): Promise<Buffer> {
+  let initialTime: number;
   if (api === 'download') {
     console.log(`Downloading ${key} from node ${id}`);
-    initial = new Date().getTime();
+    initialTime = new Date().getTime();
   } else if (api === 'upload') {
     console.log(`Uploading ${key} to node ${id}`);
-    initial = new Date().getTime();
+    initialTime = new Date().getTime();
   }
   let makePromise = () => {
     let p = rp({
@@ -83,6 +83,7 @@ async function request(
       let stream = writeStreamProvider();
       let result = Bluebird.defer<number>();
       p.on('data', data => { stream.write(data); totalSize += data.length; });
+      p.on('error', e => result.reject(e))
       p.on('end', () => { stream.end(); result.resolve(totalSize); });
       return result.promise;
     }
@@ -108,11 +109,14 @@ async function request(
       else
         length = x;
     }
-    if (initial) {
-      console.log(`Time taken: ${ (new Date().getTime() - initial) / 1000 } seconds. Bandwidth: ${
-        length / 1024 / 1024 / ((new Date().getTime() - initial) / 1000) } MB/s`);
+    if (initialTime) {
+      console.log(`Time taken: ${ (new Date().getTime() - initialTime) / 1000 } seconds. Bandwidth: ${
+        length / 1024 / 1024 / ((new Date().getTime() - initialTime) / 1000) } MB/s`);
     }
-    return x;
+    if (x instanceof Buffer)
+      return x;
+    else
+      return new Buffer('');    // empty buffer when user supplies stream
   });
 }
 
@@ -318,7 +322,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     // inserts first 3 servers which has key
     await firstFewSuccess(mapItr(hashKeyActive(key), id => () =>
       request(id, 'query', key)
-      .then(resp => JSON.parse((<Promise<Buffer>> <any> resp).toString()))
+      .then(resp => JSON.parse(resp.toString()))
       .then(x => x.present ? x : Promise.reject(`Not found on ${id}`))
       .then(() => stored.push(id))), 3);
     return dedupe(stored);
