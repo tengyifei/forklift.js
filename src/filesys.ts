@@ -79,17 +79,11 @@ async function request(
       gzip: false
     });
     if (writeStreamProvider) {
-      let totalSize = 0;
+      let totalSize = 1;
       let stream = writeStreamProvider();
       let result = Bluebird.defer<number>();
-      p.on('data', data => {
-        p.pause();
-        console.log(totalSize);
-        let haveSpace = stream.write(data, () => setTimeout(() => p.resume(), 50));
-        if (haveSpace) p.resume();
-        totalSize += data.length;
-      });
-      p.on('error', e => result.reject(e))
+      p.pipe(stream);
+      p.on('error', e => result.reject(e));
       p.on('end', () => { stream.end(); result.resolve(totalSize); });
       return result.promise;
     }
