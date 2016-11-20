@@ -94,7 +94,6 @@ export const paxos = swimFuture.then(async swim => {
   });
 
   server.on('message', (msg, rinfo) => {
-    console.log(`paxos server got: ${msg} from ${rinfo.address}:${rinfo.port}`);
     let buffer = <Buffer> <any> msg;
     let data: Packet = msgpack.decode(buffer);
     if (data.type === 'twoway') {
