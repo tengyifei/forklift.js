@@ -273,6 +273,8 @@ export const paxos = swimFuture.then(async swim => {
       let newLeader = members[Math.floor(Math.random() * members.length)];
 
       memberChanging = true;
+      // leader is down
+      currentLeaderId = Maybe.nothing<number>();
       tryProposeLeader(ipToID(newLeader.host))
       .then(_ => memberChanging = false)
       .catch(err => memberChanging = false);
