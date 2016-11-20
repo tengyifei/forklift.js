@@ -200,6 +200,7 @@ export const paxos = swimFuture.then(async swim => {
 
     let validResponses = (<[Address, PrepareResponse][]> []).concat(...responses.map(resp =>
       resp.caseOf<[Address, PrepareResponse][]>({ just: x => [x], nothing: () => [] })));
+    console.log(validResponses.length);
     // check majority
     if (validResponses.length * 2 > members.length && members.length > 0) {
       // find request with highest index
