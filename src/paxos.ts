@@ -187,7 +187,7 @@ export const paxos = swimFuture.then(async swim => {
 
   function updateLeaderId(id: number) {
     if (currentLeaderId.fmap(x => x !== id).valueOr(true)) {
-      console.log(`Leader is ${id}`);
+      console.log(`Leader goes to ${id}`);
     }
     currentLeaderId = Maybe.just(id);
   }
