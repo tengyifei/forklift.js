@@ -163,13 +163,15 @@ export const paxos = swimFuture.then(async swim => {
       maxPromiseIndex = index;
       if (payload.type === 'accept') {
         // accept it
+        if (currentLeaderId.fmap(x => x !== payload.leader).valueOr(true)) {
+          swim.members().map(x => stripPort(x.host))
+          .forEach(addr => sendOnewayRequest(addr, {
+            type: 'learn',
+            index: payload.index,
+            leader: payload.leader
+          }));
+        }
         updateLeaderId(payload.leader);
-        swim.members().map(x => stripPort(x.host))
-        .forEach(addr => sendOnewayRequest(addr, {
-          type: 'learn',
-          index: payload.index,
-          leader: payload.leader
-        }));
       } else {
         // learn it
         updateLeaderId(payload.leader);
