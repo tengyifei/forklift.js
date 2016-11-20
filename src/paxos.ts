@@ -6,6 +6,7 @@ import * as Swim from 'swim';
 import { ipToID, MemberState } from './swim';
 import * as Bluebird from 'bluebird';
 import { Maybe } from './maybe';
+import { stripPort } from './resolve-name';
 
 /**
  * Algorithm for issuing proposals
@@ -65,10 +66,6 @@ function max <T> (input: T[], comp: (a: T, b: T) => boolean): T {
     }
   }
   return currMax;
-}
-
-function stripPort(host: string): string {
-  return (/(\d+\.\d+\.\d+\.\d+):\d+/.exec(host) || [])[1] || host;
 }
 
 function makeid() {

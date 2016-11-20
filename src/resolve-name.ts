@@ -10,10 +10,9 @@ export function host2ip(host: string): string {
   return lookupTable[host];
 }
 
-export function ip2host(ip: string): string {
-  let portStripped = (/(\d+\.\d+\.\d+\.\d+):\d+/.exec(ip) || [])[1] || ip;
-  return reverseLookupTable[portStripped];
-}
+export const stripPort = (host: string) => (/(\d+\.\d+\.\d+\.\d+):\d+/.exec(host) || [])[1] || host;
+
+export const ip2host = (ip: string) => reverseLookupTable[stripPort(ip)];
 
 export let myHost = () => myHostname;
 
