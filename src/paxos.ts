@@ -208,8 +208,8 @@ export const paxos = swimFuture.then(async swim => {
     if (validResponses.length * 2 > members.length && members.length > 0) {
       // find request with highest index
       let highest = max(validResponses.map(x => x[1]), (a, b) => {
-        if (a.highestCandidate) {
-          if (b.highestCandidate) {
+        if (a && a.highestCandidate) {
+          if (b && b.highestCandidate) {
             let indexA = new Decimal(a.highestCandidate.index);
             let indexB = new Decimal(b.highestCandidate.index);
             return indexA.comparedTo(indexB) > 0;
