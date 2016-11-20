@@ -224,12 +224,14 @@ export const paxos = swimFuture.then(async swim => {
       });
       let highestCandidate = highest ? highest.highestCandidate : prepareRequest;
       // send accept request with that
-      validResponses.map(x => x[0])
-      .forEach(addr => sendOnewayRequest(addr, {
-        type: 'accept',
-        index: highestCandidate.index,
-        leader: highestCandidate.leader
-      }));
+      if (currentLeaderId.fmap(x => x !== highestCandidate.leader).valueOr(true)) {
+        validResponses.map(x => x[0])
+        .forEach(addr => sendOnewayRequest(addr, {
+          type: 'accept',
+          index: highestCandidate.index,
+          leader: highestCandidate.leader
+        }));
+      }
       updateLeaderId(highestCandidate.leader);
     } else {
       // up our promise index
