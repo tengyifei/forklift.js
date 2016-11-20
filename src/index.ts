@@ -91,6 +91,9 @@ fileSystemProtocol.then(filesys => {
 
 paxos.then(pax => {
   console.log('Leader election initialized');
+  terminalCommands = terminalCommands.concat([
+    [/^leader$/, () => console.log(`Leader is: ${pax().valueOr(NaN)}`)]
+  ]);
 });
 
 maplejuice.then(mj => {
