@@ -82,7 +82,12 @@ async function request(
       let totalSize = 0;
       let stream = writeStreamProvider();
       let result = Bluebird.defer<number>();
-      p.on('data', data => { stream.write(data); totalSize += data.length; });
+      p.on('data', data => {
+        p.pause();
+        let haveSpace = stream.write(data, () => p.resume());
+        if (haveSpace) p.resume();
+        totalSize += data.length;
+      });
       p.on('error', e => result.reject(e))
       p.on('end', () => { stream.end(); result.resolve(totalSize); });
       return result.promise;
