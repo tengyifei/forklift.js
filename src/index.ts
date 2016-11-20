@@ -75,8 +75,7 @@ fileSystemProtocol.then(filesys => {
       put(remote, fs.createReadStream(local))
       .then(() => console.log(`${local} uploaded as ${remote}`))],
     [/^get (\S+) (\S+)$/, (remote, local) =>
-      get(remote)
-      .then(buff => (<(x: string, y: any) => Promise<void>> <any> Bluebird.promisify(fs.writeFile))(local, buff))
+      get(remote, () => fs.createWriteStream(local))
       .then(() => console.log(`${remote} downloaded as ${local}`))],
     [/^delete (\S+)$/, file =>
       del(file).then(() =>

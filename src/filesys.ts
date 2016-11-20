@@ -10,7 +10,6 @@ import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
-const Throttle = require('stream-throttle').Throttle;
 
 const storeLocation = 'store';
 const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
@@ -53,7 +52,12 @@ function sequentialAttempt <T> (promises: (() => Promise<T>)[] | IterableIterato
   return firstFewSuccess(iterator, 1);
 }
 
-async function request(id: number, api: string, key: string, body?: Buffer | fs.ReadStream): Promise<Buffer> {
+async function request(
+  id: number,
+  api: string,
+  key: string,
+  body?: Buffer | fs.ReadStream,
+  writeStreamProvider?: () => fs.WriteStream): Promise<number | Buffer> {
   let initial: number;
   if (api === 'download') {
     console.log(`Downloading ${key} from node ${id}`);
@@ -62,7 +66,6 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
     console.log(`Uploading ${key} to node ${id}`);
     initial = new Date().getTime();
   }
-  let streamSize = 0;
   let makePromise = () => {
     let p = rp({
       uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
@@ -75,9 +78,17 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
       encoding: null,
       gzip: false
     });
-    return <Promise<Buffer>> <any> p;
+    if (writeStreamProvider) {
+      let totalSize = 0;
+      let stream = writeStreamProvider();
+      let result = Bluebird.defer<number>();
+      p.on('data', data => { stream.write(data); totalSize += data.length; });
+      p.on('end', () => { stream.end(); result.resolve(totalSize); });
+      return result.promise;
+    }
+    return <Bluebird<Buffer | number>> <any> p;
   };
-  return makePromise() 
+  return makePromise()
   .catch(err => {
     // 404 is definitely an error
     if (err.name === 'StatusCodeError' && err.statusCode === 404) throw err;
@@ -85,8 +96,18 @@ async function request(id: number, api: string, key: string, body?: Buffer | fs.
     return Bluebird.delay(30 + Math.random() * 30).then(() => makePromise()); })
   .then(x => {
     let length: number = 0;
-    if (api === 'download') length = x.length;
-    if (api === 'upload') length = JSON.parse(x.toString()).len;
+    if (api === 'download') {
+      if (x instanceof Buffer)
+        length = x.length;
+      else
+        length = x;
+    }
+    if (api === 'upload') {
+      if (x instanceof Buffer)
+        length = JSON.parse(x.toString()).len;
+      else
+        length = x;
+    }
     if (initial) {
       console.log(`Time taken: ${ (new Date().getTime() - initial) / 1000 } seconds. Bandwidth: ${
         length / 1024 / 1024 / ((new Date().getTime() - initial) / 1000) } MB/s`);
@@ -203,8 +224,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     if (key && files[key]) {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is downloading ${key} from us`);
       let stream = fs.createReadStream(localStorageKey(key));
-      // throttle at 180mb/s
-      stream.pipe(new Throttle({ rate: 180 * 1024 * 1024 })).pipe(res);
+      stream.pipe(res);
     } else {
       res.status(404).send('Not found: ' + key);
     }
@@ -246,9 +266,9 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         inFlightReplication[key] = true;
         sequentialAttempt(getAllActiveReplicants(key)
           .map(id =>
-            () => request(id, 'download', key)
+            () => request(id, 'download', key, undefined, () =>
+              fs.createWriteStream(localStorageKey(key)))
         ))
-        .then(content => writeFile(localStorageKey(key), content))
         .then(() => {
           files[key] = localStorageKey(key);
           inFlightReplication[key] = false;
@@ -287,8 +307,8 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   const put = (key: string, file: fs.ReadStream) =>
     firstFewSuccess(mapItr(hashKeyActive(key), id => () => request(id, 'upload', key, file)), 3);
 
-  const get = (key: string) =>
-    sequentialAttempt(mapItr(hashKeyActive(key), id => () => request(id, 'download', key)));
+  const get = (key: string, writeStreamProvider: () => fs.WriteStream) =>
+    sequentialAttempt(mapItr(hashKeyActive(key), id => () => request(id, 'download', key, undefined, writeStreamProvider)));
 
   const del = (key: string) => Promise.all(getAllActiveReplicants(key)
     .map(id => request(id, 'delete', key)));
@@ -298,7 +318,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     // inserts first 3 servers which has key
     await firstFewSuccess(mapItr(hashKeyActive(key), id => () =>
       request(id, 'query', key)
-      .then(resp => JSON.parse(resp.toString()))
+      .then(resp => JSON.parse((<Promise<Buffer>> <any> resp).toString()))
       .then(x => x.present ? x : Promise.reject(`Not found on ${id}`))
       .then(() => stored.push(id))), 3);
     return dedupe(stored);
