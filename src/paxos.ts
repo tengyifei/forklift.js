@@ -192,6 +192,7 @@ export const paxos = swimFuture.then(async swim => {
 
   async function tryProposeLeader(id: number) {
     let members = swim.members().slice();
+    ourPromiseIndex = ourPromiseIndex.plus(Math.floor(Math.random() * 10) + 1);
     let prepareRequest: PreparePayload = {
       type: 'prepare',
       leader: id,
