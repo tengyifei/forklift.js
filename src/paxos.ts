@@ -257,27 +257,37 @@ export const paxos = swimFuture.then(async swim => {
   // begin our initial proposal
   let memberChanging = false;
   let proposeCurrent = () => {
-    if (memberChanging === false) {
-      tryProposeLeader(currentLeaderId.valueOr(ipToID(swim.whoami())));
+    if (swim.members().map(x => ipToID(x.host)).findIndex(x =>
+      currentLeaderId.fmap(y => y === x).valueOr(false)) < 0) {
+      // leader is down
+      selectNewRandomLeader();
+    } else {
+      if (memberChanging === false) {
+        tryProposeLeader(currentLeaderId.valueOr(ipToID(swim.whoami())));
+      }
     }
     setTimeout(proposeCurrent, 800 + Math.random() * 400);
   };
   proposeCurrent();
 
+  function selectNewRandomLeader() {
+    // select a new leader randomly and propagate
+    let members = swim.members();
+    let newLeader = members[Math.floor(Math.random() * members.length)];
+
+    memberChanging = true;
+    // leader is down
+    currentLeaderId = Maybe.nothing<number>();
+    tryProposeLeader(ipToID(newLeader.host))
+    .then(_ => memberChanging = false)
+    .catch(err => memberChanging = false);
+  }
+
   // prepare to re-elect leader once it goes offline
   swim.on(Swim.EventType.Change, update => {
     if (update.state === MemberState.Faulty
      && currentLeaderId.fmap(x => x === ipToID(update.host)).valueOr(false)) {
-      // select a new leader randomly and propagate
-      let members = swim.members();
-      let newLeader = members[Math.floor(Math.random() * members.length)];
-
-      memberChanging = true;
-      // leader is down
-      currentLeaderId = Maybe.nothing<number>();
-      tryProposeLeader(ipToID(newLeader.host))
-      .then(_ => memberChanging = false)
-      .catch(err => memberChanging = false);
+      selectNewRandomLeader();
     }
   });
 
