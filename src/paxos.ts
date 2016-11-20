@@ -23,6 +23,7 @@ import { Maybe } from './maybe';
  * 
  * Maintain the max promise number one receives, and never acknowledge any request with lower number.
  */
+
 const PaxosPort = 41312;
 type Address = string;
 
@@ -64,6 +65,10 @@ function max <T> (input: T[], comp: (a: T, b: T) => boolean): T {
     }
   }
   return currMax;
+}
+
+function stripPort(host: string): string {
+  return (/(\d+\.\d+\.\d+\.\d+):\d+/.exec(host) || [])[1] || host;
 }
 
 function makeid() {
@@ -161,7 +166,7 @@ export const paxos = swimFuture.then(async swim => {
       if (payload.type === 'accept') {
         // accept it
         updateLeaderId(payload.leader);
-        swim.members().map(x => x.host)
+        swim.members().map(x => stripPort(x.host))
         .forEach(addr => sendOnewayRequest(addr, {
           type: 'learn',
           index: payload.index,
@@ -195,7 +200,7 @@ export const paxos = swimFuture.then(async swim => {
     // try proposing
     let responses =
     await Bluebird.all(members
-    .map(member => member.host)
+    .map(member => stripPort(member.host))
     .map(addr => sendTwowayRequest(addr, prepareRequest)));
 
     let validResponses = (<[Address, PrepareResponse][]> []).concat(...responses.map(resp =>
