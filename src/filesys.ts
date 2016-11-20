@@ -84,7 +84,7 @@ async function request(
       let result = Bluebird.defer<number>();
       p.on('data', data => {
         p.pause();
-        console.log('>');
+        console.log(totalSize);
         let haveSpace = stream.write(data, () => p.resume());
         if (haveSpace) p.resume();
         totalSize += data.length;
