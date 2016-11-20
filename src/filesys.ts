@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
-const Throttle = require('stream-throttle');
+const Throttle = require('stream-throttle').Throttle;
 
 const storeLocation = 'store';
 const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
