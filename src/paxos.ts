@@ -182,6 +182,7 @@ export const paxos = swimFuture.then(async swim => {
 
   function updateLeaderId(id: number) {
     currentLeaderId = Maybe.just(id);
+    console.log(`Leader is ${id}`);
   }
 
   async function tryProposeLeader(id: number) {
