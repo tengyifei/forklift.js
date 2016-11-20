@@ -186,8 +186,10 @@ export const paxos = swimFuture.then(async swim => {
   let ourPromiseIndex = new Decimal(Math.floor(Math.random() * 10));
 
   function updateLeaderId(id: number) {
+    if (currentLeaderId.fmap(x => x !== id).valueOr(true)) {
+      console.log(`Leader is ${id}`);
+    }
     currentLeaderId = Maybe.just(id);
-    console.log(`Leader is ${id}`);
   }
 
   async function tryProposeLeader(id: number) {
@@ -258,7 +260,7 @@ export const paxos = swimFuture.then(async swim => {
     if (memberChanging === false) {
       tryProposeLeader(currentLeaderId.valueOr(ipToID(swim.whoami())));
     }
-    setTimeout(proposeCurrent, 950 + Math.random() * 100);
+    setTimeout(proposeCurrent, 800 + Math.random() * 400);
   };
   proposeCurrent();
 
