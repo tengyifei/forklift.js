@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
-const Throttle = require('throttle');
+const Throttle = require('stream-throttle');
 
 const storeLocation = 'store';
 const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
@@ -204,7 +204,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is downloading ${key} from us`);
       let stream = fs.createReadStream(localStorageKey(key));
       // throttle at 180mb/s
-      stream.pipe(new Throttle(180 * 1024 * 1024)).pipe(res);
+      stream.pipe(new Throttle({ rate: 180 * 1024 * 1024 })).pipe(res);
     } else {
       res.status(404).send('Not found: ' + key);
     }
