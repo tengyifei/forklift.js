@@ -250,6 +250,7 @@ export const paxos = swimFuture.then(async swim => {
     }
     setTimeout(proposeCurrent, 950 + Math.random() * 100);
   };
+  proposeCurrent();
 
   // prepare to re-elect leader once it goes offline
   swim.on(Swim.EventType.Change, update => {
