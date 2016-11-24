@@ -56,7 +56,7 @@ async function request(
   id: number,
   api: string,
   key: string,
-  body?: Buffer | fs.ReadStream,
+  body?: Buffer | (() => fs.ReadStream),
   writeStreamProvider?: () => fs.WriteStream): Promise<Buffer> {
   let initialTime: number;
   if (api === 'download') {
@@ -74,7 +74,7 @@ async function request(
         'sdfs-key': key,
         'Content-Type': 'application/octet-stream',
       },
-      body: body,
+      body: body instanceof Buffer ? body : body(),
       encoding: null,
       gzip: false
     });
@@ -313,7 +313,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }
   });
 
-  const put = (key: string, file: fs.ReadStream) =>
+  const put = (key: string, file: () => fs.ReadStream) =>
     firstFewSuccess(mapItr(hashKeyActive(key), id => () => request(id, 'upload', key, file)), 3);
 
   const get = (key: string, writeStreamProvider: () => fs.WriteStream) =>

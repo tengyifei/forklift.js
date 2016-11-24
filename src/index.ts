@@ -72,7 +72,7 @@ fileSystemProtocol.then(filesys => {
 
   terminalCommands = terminalCommands.concat([
     [/^put (\S+) (\S+)$/, (local, remote) =>
-      put(remote, fs.createReadStream(local))
+      put(remote, () => fs.createReadStream(local))
       .then(() => console.log(`${local} uploaded as ${remote}`))],
     [/^get (\S+) (\S+)$/, (remote, local) =>
       get(remote, () => fs.createWriteStream(local))
@@ -97,4 +97,14 @@ paxos.then(pax => {
 
 maplejuice.then(mj => {
   console.log('Map-reduce initialized');
+  terminalCommands = terminalCommands.concat([
+    [/^maple (\S+) (\d+) ([a-zA-Z0-9_\-]+) ([a-zA-Z0-9_\-]+)$/,
+    (mapleExe, numMaples, intermediatePrefix, sourceDirectory) => {
+
+    }],
+    [/^juice (\S+) (\d+) ([a-zA-Z0-9_\-]+) ([a-zA-Z0-9_\-]+) delete_input=([01])( partition=(hash|range))?$/,
+    (juiceExe, numJuices, intermediatePrefix, destFilename, deleteInput, _, partitionAlgorithm) => {
+
+    }]
+  ]);
 });
