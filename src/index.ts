@@ -105,15 +105,16 @@ paxos.then(pax => {
 });
 
 maplejuice.then(mj => {
+  let { maple, juice } = mj;
   console.log('Map-reduce initialized');
   terminalCommands = terminalCommands.concat([
     [/^maple (\S+) (\d+) ([a-zA-Z0-9_\-]+) ([a-zA-Z0-9_\-]+)$/,
     (mapleExe, numMaples, intermediatePrefix, sourceDirectory) => {
-
+      maple(mapleExe, +numMaples, intermediatePrefix, sourceDirectory);
     }],
     [/^juice (\S+) (\d+) ([a-zA-Z0-9_\-]+) ([a-zA-Z0-9_\-]+) delete_input=([01])( partition=(hash|range))?$/,
     (juiceExe, numJuices, intermediatePrefix, destFilename, deleteInput, _, partitionAlgorithm) => {
-
+      juice(juiceExe, +numJuices, intermediatePrefix, destFilename, !!deleteInput, partitionAlgorithm);
     }]
   ]);
 });

@@ -82,7 +82,8 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
   // start the computation
   (<(x: stream.Readable, y: (z: string) => void) => Promise<void>> <any>
     Bluebird.promisify(lineReader.eachLine))(data, line => {
-    if (line.length !== 0) worker.postMessage({ type: 'line', line });
+      // TODO: batching
+      if (line.length !== 0) worker.postMessage({ type: 'line', line });
   })
   .then(() => worker.postMessage({ type: 'done' }))
   .catch(err => {
@@ -94,4 +95,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
   return handle.promise;
 }
 
+/**
+ * Output of juice function is plaintext in {key: value} format, separated by line
+ */
 

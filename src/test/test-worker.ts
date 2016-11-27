@@ -13,7 +13,7 @@ const expect = chai.expect;
 import { maple } from '../worker';
 
 describe.only('Worker', function () {
-  it('handles maple and juice', async function () {
+  it('handles maple', async function () {
     let testData =
 `apple bla apple
 apple

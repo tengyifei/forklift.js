@@ -5,6 +5,27 @@ import * as Swim from 'swim';
 import { paxos, leaderStream } from './paxos';
 import { Observable } from 'rxjs/Rx';
 import * as Bluebird from 'bluebird';
+import * as express from 'express';
+import * as crypto from 'crypto';
+import * as bodyParser from 'body-parser';
+import * as rp from 'request-promise';
+import * as mkdirp from 'mkdirp';
+import * as rimraf from 'rimraf';
+
+interface MapleJob {
+  type: 'maple';
+}
+
+interface JuiceJob {
+  type: 'juice';
+}
+
+type Command = MapleJob | JuiceJob;
+
+const WorkerPort = 54321;
+const MasterPort = 54231;
+
+const intermediateLocation = 'mp_tmp';
 
 /**
  * Maple:
@@ -33,10 +54,15 @@ import * as Bluebird from 'bluebird';
  */
 
 export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
-.then(([paxos, fileSystemProtocol, swim]) => {
+.then(async ([paxos, fileSystemProtocol, swim]) => {
+
+  // recreate tmp folder
+  await Bluebird.promisify(rimraf)(intermediateLocation);
+  await Bluebird.promisify(mkdirp)(intermediateLocation);
+
+  let commandQueue: Command[] = [];
 
   let ourId = ipToID(swim.whoami());
-
   // start master program if we are the leader
   leaderStream.subscribe(id => {
     if (id === ourId) {
@@ -53,5 +79,27 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   function stopMapleJuiceMaster() {
     console.log('Stop MapleJuice Master');
   }
+
+  function maple(
+    mapleExe: string,
+    numMaples: number,
+    intermediatePrefix: string,
+    sourceDirectory: string)
+  {
+
+  }
+
+  function juice(
+    juiceExe: string,
+    numJuices: number,
+    intermediatePrefix: string,
+    destFilename: string,
+    deleteInput: boolean,
+    partitionAlgorithm: 'hash' | 'range')
+  {
+
+  }
+
+  return { maple, juice };
 
 });
