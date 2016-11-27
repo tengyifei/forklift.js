@@ -88,7 +88,7 @@ async function request(
         if (haveSpace) p.resume();
         totalSize += data.length;
       });
-      p.on('error', e => result.reject(e));
+      p.on('error', e => { stream.emit('error', e); result.reject(e); });
       p.on('end', () => { stream.end(); result.resolve(totalSize); });
       return result.promise;
     }
@@ -324,12 +324,12 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
 
   const ls = async (key: string) => {
     let stored: number[] = [];
-    // inserts first 3 servers which has key
+    // inserts all servers which has key
     await firstFewSuccess(mapItr(hashKeyActive(key), id => () =>
       request(id, 'query', key)
       .then(resp => JSON.parse(resp.toString()))
       .then(x => x.present ? x : Promise.reject(`Not found on ${id}`))
-      .then(() => stored.push(id))), 3);
+      .then(() => stored.push(id))), 10);
     return dedupe(stored);
   };
 

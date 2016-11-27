@@ -2,8 +2,8 @@ import * as readline from 'readline';
 import * as tty from 'tty';
 const charm = require('charm')(process);
 
-export interface Command {
-  kind: 'command';
+export interface Line {
+  kind: 'line';
   value: string;
 }
 
@@ -11,9 +11,11 @@ export interface Exit {
   kind: 'exit';
 }
 
-export type Input = Command | Exit; 
+export type Input = Line | Exit;
 
-export let runConsole = (processor: (x: Input) => void) => {
+let commandQueue = Promise.resolve();
+
+export let runConsole = (processor: (x: Input) => Promise<void>) => {
   // clears screen
   charm.reset();
   const stdin = process.stdin;
@@ -35,7 +37,7 @@ export let runConsole = (processor: (x: Input) => void) => {
       // process input
       let inputCopy = input.split('').join('');
       if (inputCopy !== '') {
-        setTimeout(() => processor({ kind: 'command', value: inputCopy }), 1);
+        commandQueue = commandQueue.then(() => processor({ kind: 'line', value: inputCopy }));
       }
       // enter key
       input = '';

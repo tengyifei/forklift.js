@@ -7,23 +7,7 @@ import { ipToID, MemberState } from './swim';
 import * as Bluebird from 'bluebird';
 import { Maybe } from './maybe';
 import { stripPort } from './resolve-name';
-
-/**
- * Algorithm for issuing proposals
- * ===============================
- * 
- * Prepare: A proposer chooses a proposal number n and sends it to some acceptors, getting from each
- * a) A promise to never accept any proposal with number larger than n.
- * b) The proposal with highest number less than n that it has accepted.
- * 
- * Propose: Upon receiving response from a majority, the proposer proposes the highest proposal among responses,
- * or build a new proposal when none exists.
- * 
- * Algorithm for accepting proposals
- * =================================
- * 
- * Maintain the max promise number one receives, and never acknowledge any request with lower number.
- */
+import { Observable, Subject } from 'rxjs/Rx';
 
 const PaxosPort = 41312;
 type Address = string;
@@ -76,6 +60,27 @@ function makeid() {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   return text;
 }
+
+let leaderStreamInternal = new Subject<number>();
+export let leaderStream = leaderStreamInternal.distinctUntilChanged();
+leaderStream.do(id => console.log(`Leader goes to ${id}`));
+
+/**
+ * Algorithm for issuing proposals
+ * ===============================
+ * 
+ * Prepare: A proposer chooses a proposal number n and sends it to some acceptors, getting from each
+ * a) A promise to never accept any proposal with number larger than n.
+ * b) The proposal with highest number less than n that it has accepted.
+ * 
+ * Propose: Upon receiving response from a majority, the proposer proposes the highest proposal among responses,
+ * or build a new proposal when none exists.
+ * 
+ * Algorithm for accepting proposals
+ * =================================
+ * 
+ * Maintain the max promise number one receives, and never acknowledge any request with lower number.
+ */
 
 export const paxos = swimFuture.then(async swim => {
   // when UDP requests get responses, the corresponding promise is resolved
@@ -186,10 +191,8 @@ export const paxos = swimFuture.then(async swim => {
   let ourPromiseIndex = new Decimal(Math.floor(Math.random() * 10));
 
   function updateLeaderId(id: number) {
-    if (currentLeaderId.fmap(x => x !== id).valueOr(true)) {
-      console.log(`Leader goes to ${id}`);
-    }
     currentLeaderId = Maybe.just(id);
+    leaderStreamInternal.next(id);
   }
 
   async function tryProposeLeader(id: number) {

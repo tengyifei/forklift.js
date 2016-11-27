@@ -2,7 +2,7 @@ import swimFuture from './swim';
 import { ipToID } from './swim';
 import * as Swim from 'swim';
 import * as fs from 'fs';
-import { Command, Exit, runConsole } from './command';
+import { Line, Exit, runConsole } from './command';
 import { fileSystemProtocol } from './filesys';
 import { paxos } from './paxos';
 import { maplejuice } from './maplejuice';
@@ -13,7 +13,7 @@ let terminalCommands: [RegExp, Function][] = [
     console.log(`Available commands: ${terminalCommands.map(([regex, _]) => regex.toString()).join(' ')}`)]
 ];
 
-let matchCommand: (x: string, y: [RegExp, Function][]) => void
+let matchSingleCommand: (x: string, y: [RegExp, Function][]) => void
   = (command, functions) => {
     for (let i = 0; i < functions.length; i++) {
       let [regex, func] = functions[i];
@@ -27,18 +27,27 @@ let matchCommand: (x: string, y: [RegExp, Function][]) => void
     console.error('Unknown command: ' + command);
   };
 
-runConsole(item => {
+let matchCommands: (x: string, y: [RegExp, Function][]) => Promise<void>
+  = async (line, functions) => {
+    let commands = line.split(';').map(x => x.trim());
+    for (let i = 0; i < commands.length; i++) {
+      matchSingleCommand(commands[i], functions);
+      await Bluebird.delay(20);
+    }
+  };
+
+runConsole(async item => {
   switch (item.kind) {
-    case 'command':
-      let command = item.value.trim();
-      if (command === 'terminate') {
+    case 'line':
+      let commands = item.value.trim();
+      if (commands === 'terminate') {
         process.exit(0);
       }
-      matchCommand(command, terminalCommands);
+      await matchCommands(commands, terminalCommands);
     break;
     case 'exit':
       console.log('Shutting down');
-      Promise.race([swimFuture, Promise.resolve(null)])
+      await Promise.race([swimFuture, Promise.resolve(null)])
       .then(x => {
         if (x) {  // swim is active
           swimFuture
