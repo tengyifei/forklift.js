@@ -8,6 +8,7 @@ import * as crypto from 'crypto';
 import * as bodyParser from 'body-parser';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
+import * as stream from 'stream';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
 
@@ -56,8 +57,8 @@ async function request(
   id: number,
   api: string,
   key: string,
-  body?: Buffer | (() => fs.ReadStream),
-  writeStreamProvider?: () => fs.WriteStream): Promise<Buffer> {
+  body?: Buffer | (() => stream.Readable),
+  writeStreamProvider?: () => stream.Writable): Promise<Buffer> {
   let initialTime: number;
   if (api === 'download') {
     console.log(`Downloading ${key} from node ${id}`);
@@ -74,7 +75,7 @@ async function request(
         'sdfs-key': key,
         'Content-Type': 'application/octet-stream',
       },
-      body: body instanceof Buffer ? body : body(),
+      body: body ? body instanceof Buffer ? body : body() : undefined,
       encoding: null,
       gzip: false
     });
@@ -313,7 +314,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }
   });
 
-  const put = (key: string, file: () => fs.ReadStream) =>
+  const put = (key: string, file: () => stream.Readable) =>
     firstFewSuccess(mapItr(hashKeyActive(key), id => () => request(id, 'upload', key, file)), 3);
 
   const get = (key: string, writeStreamProvider: () => fs.WriteStream) =>

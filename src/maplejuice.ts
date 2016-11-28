@@ -4,6 +4,7 @@ import { ipToID } from './swim';
 import * as Swim from 'swim';
 import { paxos, leaderStream } from './paxos';
 import { Observable } from 'rxjs/Rx';
+import { partitionDataset } from './partition-dataset';
 import * as Bluebird from 'bluebird';
 import * as express from 'express';
 import * as crypto from 'crypto';
@@ -11,6 +12,20 @@ import * as bodyParser from 'body-parser';
 import * as rp from 'request-promise';
 import * as mkdirp from 'mkdirp';
 import * as rimraf from 'rimraf';
+import * as path from 'path';
+import * as fs from 'fs';
+
+interface MasterMaple {
+
+}
+
+interface MasterJuice {
+
+}
+
+interface MasterQuery {
+
+}
 
 interface MapleJob {
   type: 'maple';
@@ -80,16 +95,63 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     console.log('Stop MapleJuice Master');
   }
 
-  function maple(
+  let haveLeader = Bluebird.defer();
+  leaderStream.skip(1).take(1).do(() => haveLeader.resolve()).subscribe();
+
+  async function masterRequest(api: string, body: MasterMaple | MasterJuice | MasterQuery) {
+    await haveLeader.promise;
+    let id = paxos().valueOr(1);
+    return rp({
+      uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:${MasterPort}/${api}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: body || {},
+      json: true,
+      encoding: null,
+      gzip: false
+    });
+  }
+
+  async function withLeader() {
+    let defer = Bluebird.defer<number>();
+    await haveLeader.promise;
+    let leaderM = paxos();
+    leaderM.caseOf({
+      just: leader => defer.resolve(leader),
+      nothing: () => { throw new Error('Cannot schedule while master is down'); }
+    });
+    return defer;
+  }
+
+  async function maple(
     mapleExe: string,
     numMaples: number,
     intermediatePrefix: string,
     sourceDirectory: string)
   {
-
+    let leader = await withLeader();
+    // upload maple script
+    let mapleScriptName = path.basename(mapleExe, '.js');
+    await fileSystemProtocol.put(mapleScriptName, () => fs.createReadStream(mapleExe));
+    // split and upload dataset
+    let dataStreams = partitionDataset(sourceDirectory, numMaples);
+    let datasetPrefix = Math.round(Math.random() * 1000000);
+    // TODO: handle upload failure
+    await Promise.all(dataStreams.map((stream, index) =>
+      fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${index}`, () => stream)));
+    // start job
+    await masterRequest('maple', {
+      mapleScriptName,
+      numMaples,
+      datasetPrefix,
+      intermediatePrefix
+    });
+    console.log('Maple job ${mapleScriptName} sent');
   }
 
-  function juice(
+  async function juice(
     juiceExe: string,
     numJuices: number,
     intermediatePrefix: string,
@@ -97,7 +159,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     deleteInput: boolean,
     partitionAlgorithm: 'hash' | 'range')
   {
-
+    let leader = await withLeader();
   }
 
   return { maple, juice };
