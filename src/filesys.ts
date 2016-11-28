@@ -88,7 +88,6 @@ async function request(
         if (!haveSpace) {
           p.pause();
           stream.once('drain', () => p.resume());
-          gc();
         }
         totalSize += data.length;
       });
@@ -355,6 +354,11 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
   .then(() => console.log('Initial replication'))
   .then(async () => {
+    let p = () => {
+      console.log(process.memoryUsage());
+      setTimeout(p, 1000);
+    }
+    p();
     // recreate data folder
     await Bluebird.promisify(rimraf)(storeLocation);
     await Bluebird.promisify(mkdirp)(storeLocation);
