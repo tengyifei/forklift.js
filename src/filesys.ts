@@ -11,10 +11,7 @@ import * as mkdirp from 'mkdirp';
 import * as stream from 'stream';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
-
-var memwatch = require('memwatch-next');
-var hd;
-memwatch.on('leak', function(info) { var diff = hd.end(); console.log(diff); });
+var heapdump = require('heapdump');
 
 const storeLocation = 'store';
 const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
@@ -85,9 +82,11 @@ async function request(
     });
     if (writeStreamProvider) {
       let totalSize = 1;
-      hd = new memwatch.HeapDiff();
       let stream = writeStreamProvider();
       let result = Bluebird.defer<number>();
+      setTimeout(() => {
+        heapdump.writeSnapshot('./' + Date.now() + '.heapsnapshot');
+      }, 5000);
       p.on('data', data => {
         let haveSpace = stream.write(data);
         if (!haveSpace) {
