@@ -4,7 +4,7 @@
   "description": "",
   "main": "src/index.ts",
   "scripts": {
-    "start": "gulp && node  --expose-gc --max_old_space_size=512 --trace-gc dist/src/index.js",
+    "start": "gulp && node --max_executable_size=384 --max_old_space_size=384 dist/src/index.js",
     "test": "gulp && mocha dist/src/test"
   },
   "repository": {
