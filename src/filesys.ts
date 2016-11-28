@@ -355,7 +355,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   .then(() => console.log('Initial replication'))
   .then(async () => {
     let p = () => {
-      console.log(process.memoryUsage());
+      getV8Statistics();
       setTimeout(p, 1000);
     }
     p();
