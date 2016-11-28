@@ -86,7 +86,7 @@ async function request(
       let result = Bluebird.defer<number>();
       setTimeout(() => {
         heapdump.writeSnapshot('./' + Date.now() + '.heapsnapshot');
-      }, 5000);
+      }, 3000);
       p.on('data', data => {
         let haveSpace = stream.write(data);
         if (!haveSpace) {
