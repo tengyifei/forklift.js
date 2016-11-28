@@ -88,6 +88,7 @@ async function request(
         if (!haveSpace) {
           p.pause();
           stream.once('drain', () => p.resume());
+          gc();
         }
         totalSize += data.length;
       });
