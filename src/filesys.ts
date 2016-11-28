@@ -12,6 +12,9 @@ import * as stream from 'stream';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
 
+var memwatch = require('memwatch-next');
+memwatch.on('leak', function(info) { console.log(info); });
+
 const storeLocation = 'store';
 const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
 
@@ -354,11 +357,6 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
   .then(() => console.log('Initial replication'))
   .then(async () => {
-    let p = () => {
-      getV8Statistics();
-      setTimeout(p, 1000);
-    }
-    p();
     // recreate data folder
     await Bluebird.promisify(rimraf)(storeLocation);
     await Bluebird.promisify(mkdirp)(storeLocation);
