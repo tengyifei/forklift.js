@@ -87,8 +87,10 @@ async function request(
       p.on('data', data => {
         let haveSpace = stream.write(data);
         if (!haveSpace) {
+          console.log(`pause ${totalSize}`);
           p.pause();
         } else {
+          console.log(`resume ${totalSize}`);
           p.resume();
         }
         totalSize += data.length;
