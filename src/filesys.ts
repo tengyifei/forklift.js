@@ -13,7 +13,8 @@ import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
 
 var memwatch = require('memwatch-next');
-memwatch.on('leak', function(info) { console.log(info); });
+var hd;
+memwatch.on('leak', function(info) { var diff = hd.end(); console.log(diff); });
 
 const storeLocation = 'store';
 const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
@@ -84,6 +85,7 @@ async function request(
     });
     if (writeStreamProvider) {
       let totalSize = 1;
+      hd = new memwatch.HeapDiff();
       let stream = writeStreamProvider();
       let result = Bluebird.defer<number>();
       p.on('data', data => {
