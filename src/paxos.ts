@@ -7,7 +7,7 @@ import { ipToID, MemberState } from './swim';
 import * as Bluebird from 'bluebird';
 import { Maybe } from './maybe';
 import { stripPort } from './resolve-name';
-import { Observable, Subject } from 'rxjs/Rx';
+import { Observable, ReplaySubject } from 'rxjs/Rx';
 import { makeid } from './utils';
 
 const PaxosPort = 41312;
@@ -53,9 +53,9 @@ function max <T> (input: T[], comp: (a: T, b: T) => boolean): T {
   return currMax;
 }
 
-let leaderStreamInternal = new Subject<number>();
+let leaderStreamInternal = new ReplaySubject<number>();
 export let leaderStream = leaderStreamInternal.distinctUntilChanged();
-leaderStream.do(id => console.log(`Leader goes to ${id}`));
+leaderStream.do(id => console.log(`Leader goes to ${id}`)).subscribe();
 
 /**
  * Algorithm for issuing proposals

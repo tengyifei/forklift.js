@@ -390,7 +390,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     intermediatePrefix: string,
     sourceDirectory: string)
   {
-    console.log('la')
     let leader = await withLeader();
     // upload maple script
     let mapleScriptName = path.basename(mapleExe, '.js');
