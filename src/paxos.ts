@@ -8,6 +8,7 @@ import * as Bluebird from 'bluebird';
 import { Maybe } from './maybe';
 import { stripPort } from './resolve-name';
 import { Observable, Subject } from 'rxjs/Rx';
+import { makeid } from './utils';
 
 const PaxosPort = 41312;
 type Address = string;
@@ -50,15 +51,6 @@ function max <T> (input: T[], comp: (a: T, b: T) => boolean): T {
     }
   }
   return currMax;
-}
-
-function makeid() {
-  var text = "";
-  var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  var len = 64;
-  for (var i = 0; i < len; i++)
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  return text;
 }
 
 let leaderStreamInternal = new Subject<number>();

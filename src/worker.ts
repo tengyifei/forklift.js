@@ -62,6 +62,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       kvFiles.forEach(stream => stream.end());
       handle.resolve(Array.from(kvFiles.keys()));
     } else {
+      // write worker output to file
       msg.kvs.forEach(kv => {
         let [key, value] = kv;
         if (kvFiles.has(kv[0]) === false) {

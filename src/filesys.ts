@@ -14,7 +14,7 @@ import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
 
 const storeLocation = 'store';
-const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
+const writeFile = Bluebird.promisify((f: string, data, cb) => fs.writeFile(f, data, cb));
 
 function* mapItr <T, R> (input: IterableIterator<T>, fn: (x: T) => R) {
   for (let x of input) yield fn(x);
@@ -354,7 +354,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
           request(id, api, key, body))))));
   }
 
-  return await (<(port: number) => Bluebird<{}>> Bluebird.promisify(app.listen, { context: app }))(22895)
+  return await Bluebird.promisify((p: number, cb) => app.listen(p, cb))(22895)
   .then(() => console.log('Initial replication'))
   .then(async () => {
     // recreate data folder
