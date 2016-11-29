@@ -335,7 +335,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
     // send tasks
     await Promise.all(assignedTasks.map(task => workerRequest(
-      task.type === 'mapletask' ? 'mapleJob' : 'juiceJob',
+      task.type === 'mapletask' ? 'mapleTask' : 'juiceTask',
       task.assignedWorker,
       task)));
     // start querying worker states
