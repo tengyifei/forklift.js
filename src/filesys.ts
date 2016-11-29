@@ -67,6 +67,9 @@ async function request(
   } else if (api === 'upload') {
     console.log(`Uploading ${key} to node ${id}`);
     initialTime = new Date().getTime();
+  } else if (api === 'append') {
+    console.log(`Appending ${key} to node ${id}`);
+    initialTime = new Date().getTime();
   }
   let makePromise = () => {
     let maker = writeStreamProvider ? Request : rp;
@@ -114,7 +117,7 @@ async function request(
       else
         length = x;
     }
-    if (api === 'upload') {
+    if (api === 'upload' || api === 'append') {
       if (x instanceof Buffer)
         length = JSON.parse(x.toString()).len;
       else
@@ -265,6 +268,28 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }
   });
 
+  // receives binary and appends it into existing buffer
+  app.post('/append', (req, res) => {
+    let key = req.header('sdfs-key');
+    if (key) {
+      console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is appending ${key} to us`);
+      files[key] = localStorageKey(key);
+      let stream = fs.createWriteStream(localStorageKey(key), {
+        flags: 'a'
+      });
+      let totalSize = 0;
+      req.on('data', data => { stream.write(data); totalSize += data.length; });
+      req.on('end', () => {
+        stream.end();
+        res.status(200).send({
+          len: totalSize
+        });
+      });
+    } else {
+      res.status(400).send('Must specify sdfs-key');
+    }
+  });
+
   // list all keys under format { keys: [...] }
   app.post('/list_keys', (req, res) => res.send({ keys: Object.keys(files) }));
 
@@ -319,10 +344,15 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     }
   });
 
+  const append = async (key: string, file: () => stream.Readable) => {
+    let nodesWithKey = await ls(key);
+    await Promise.all(nodesWithKey.map(node => request(node, 'append', key, file)));
+  };
+
   const put = (key: string, file: () => stream.Readable) =>
     firstFewSuccess(mapItr(hashKeyActive(key), id => () => request(id, 'upload', key, file)), 3);
 
-  const get = (key: string, writeStreamProvider: () => fs.WriteStream) =>
+  const get = (key: string, writeStreamProvider: () => stream.Writable) =>
     sequentialAttempt(mapItr(hashKeyActive(key), id => () => request(id, 'download', key, undefined, writeStreamProvider)));
 
   const del = (key: string) => Promise.all(getAllActiveReplicants(key)
@@ -457,6 +487,6 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
       }
     }))
   .then(() => Object.freeze({
-    put, get, del, ls, store
+    put, get, del, ls, store, append
   }));
 });

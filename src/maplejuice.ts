@@ -5,7 +5,9 @@ import { paxos, leaderStream } from './paxos';
 import { Observable } from 'rxjs/Rx';
 import { partitionDataset } from './partition-dataset';
 import { ReactiveQueue } from './producer-consumer';
-import { makeid } from './utils';
+import { makeid, BufferingStream } from './utils';
+import { maple as runMaple } from './worker';
+import Semaphore from './semaphore';
 import * as http from 'http';
 import * as Swim from 'swim';
 import * as Bluebird from 'bluebird';
@@ -17,7 +19,9 @@ import * as mkdirp from 'mkdirp';
 import * as rimraf from 'rimraf';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as stream from 'stream';
 import * as _ from 'lodash';
+const streamToPromise: (x: stream.Writable) => Promise<void> = require('stream-to-promise');
 
 interface MasterMaple {
 
@@ -29,6 +33,10 @@ interface MasterJuice {
 
 interface MasterQuery {
 
+}
+
+interface MasterLock {
+  key: string;
 }
 
 /**
@@ -53,28 +61,31 @@ interface JuiceJob {
   taskIds: string[];
   numWorkers: number;
   scriptName: string;
-  mapleKeySetFile: string;
 }
 
 type Command = MapleJob | JuiceJob;
 
-interface Task {
+interface TaskBase {
   type: 'mapletask' | 'juicetask';
   jobId: string;
   id: string;
+  scriptName: string;
   assignedWorker?: number;
   state: 'waiting' | 'progress';
 }
 
-interface MapleTask extends Task {
+interface MapleTask extends TaskBase {
   type: 'mapletask';
+  intermediatePrefix: string;
   inputFile: string;
 }
 
-interface JuiceTask extends Task {
+interface JuiceTask extends TaskBase {
   type: 'juicetask';
   inputKeys: string[];
 }
+
+type Task = MapleTask | JuiceTask;
 
 interface WorkerQuery {
 
@@ -117,6 +128,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   ///
   /// worker server
   ///
+  let currentTask: Task;
 
   // recreate tmp folder
   await Bluebird.promisify(rimraf)(intermediateLocation);
@@ -125,12 +137,62 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   const workerApp = express();
   workerApp.use(bodyParser.json());
 
-  workerApp.post('/mapleTask', (req, res) => {
+  workerApp.post('/mapleTask', async (req, res) => {
     if (!req.body) return res.sendStatus(400);
+    let task: Task = req.body;
+    if (currentTask) {
+      return res.status(400).send('Task ${current.id} in progress');
+    }
+    if (task.type !== 'mapletask') {
+      return res.status(400).set('Not a Maple task');
+    }
+    // start
+    currentTask = task;
+    res.status(200).set('Working');
+    // download maple script
+    console.log(`Maple: Downloading script ${task.scriptName}`);
+    let mapleScript: string;
+    await fileSystemProtocol.get(task.scriptName, () => {
+      let s = new BufferingStream();
+      s.on('finish', () => { mapleScript = s.result.toString(); });
+      return s;
+    });
+    let writes: Promise<void>[] = [];
+    // download our part of the dataset
+    let inputFile = task.inputFile;
+    console.log(`Maple: Downloading partition ${inputFile}`);
+    await fileSystemProtocol.get(inputFile, () => fs.createWriteStream(`${intermediateLocation}/${inputFile}`));
+    // start maple worker
+    console.log(`Maple: Processing ${inputFile}`);
+    let keys = await runMaple(
+      mapleScript,
+      fs.createReadStream(`${intermediateLocation}/${inputFile}`),
+      key => { let s = fs.createWriteStream(`${intermediateLocation}/${key}`); writes.push(streamToPromise(s)); return s; });
+    // wait for intermediate results to be written to disk
+    await Promise.all(writes);
+    // upload results
+    console.log(`Maple: Uploading results`);
+    for (let i = 0; i < keys.length; i++) {
+      // get lock from master
+      await masterRequest('lock', { key: keys[i] });
+      // perform append
+      await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
+        () => fs.createReadStream(`${intermediateLocation}/${keys[i]}`));
+      // release lock from master
+      await masterRequest('unlock', { key: keys[i] });
+    }
+    // append key set
+    await masterRequest('lock', { key: `KeySet_${task.scriptName}` });
+
+    await masterRequest('unlock', { key: `KeySet_${task.scriptName}` });
+    // signal master that we're done
   });
 
   workerApp.post('/juiceTask', (req, res) => {
     if (!req.body) return res.sendStatus(400);
+    if (currentTask) {
+      return res.status(403).send('Task ${current.id} in progress');
+    }
   });
 
   await Bluebird.promisify((x: number, cb) => workerApp.listen(x, cb))(WorkerPort);
@@ -187,6 +249,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       let task: MapleTask = {
         type: 'mapletask',
         id: makeid(),
+        intermediatePrefix: intermediatePrefix,
+        scriptName: mapleScriptName,
         jobId: job.id,
         inputFile: `M${datasetPrefix}_${mapleScriptName}_DS${i}`,
         state: 'waiting'
@@ -199,6 +263,32 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
 
   masterApp.post('/juice', (req, res) => {
     if (!req.body) return res.sendStatus(400);
+  });
+
+  let locks: { [x: string]: Semaphore } = {};
+
+  masterApp.post('/lock', async (req, res) => {
+    if (!req.body) return res.sendStatus(400);
+    let key: string = req.body.key;
+    if (!locks[key]) {
+      // initialize
+      locks[key] = new Semaphore();
+    }
+    // try locking existing semaphore
+    await locks[key].acquire();
+    res.sendStatus(200);
+  });
+
+  masterApp.post('/unlock', (req, res) => {
+    if (!req.body) return res.sendStatus(400);
+    let key: string = req.body.key;
+    if (!locks[key]) {
+      // initialize
+      locks[key] = new Semaphore();
+    } else {
+      locks[key].release();
+    }
+    res.sendStatus(200);
   });
 
   function startMapleJuiceMaster() {
@@ -267,7 +357,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   let haveLeader = Bluebird.defer();
   leaderStream.skip(1).take(1).do(() => haveLeader.resolve()).subscribe();
 
-  async function masterRequest(api: string, body?: MasterMaple | MasterJuice | MasterQuery) {
+  async function masterRequest(api: string, body?: MasterMaple | MasterJuice | MasterQuery | MasterLock) {
     await haveLeader.promise;
     let id = paxos().valueOr(1);
     return await rp({
