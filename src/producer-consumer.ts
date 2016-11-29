@@ -1,10 +1,12 @@
 import { Observable, ReplaySubject } from 'rxjs/Rx';
 
-class ReactiveQueue <T> {
+export class ReactiveQueue <T> {
   private stream: ReplaySubject<T>;
   private queue: T[];
   private waiting: boolean;
   private listeners: ((x: T) => PromiseLike<void>)[];
+
+  get _queue() { return this.queue.slice(); }
 
   constructor() {
     this.stream = new ReplaySubject<T>();

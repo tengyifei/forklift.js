@@ -4,6 +4,7 @@ import { ipToID } from './swim';
 import { paxos, leaderStream } from './paxos';
 import { Observable } from 'rxjs/Rx';
 import { partitionDataset } from './partition-dataset';
+import { ReactiveQueue } from './producer-consumer';
 import { makeid } from './utils';
 import * as http from 'http';
 import * as Swim from 'swim';
@@ -16,6 +17,7 @@ import * as mkdirp from 'mkdirp';
 import * as rimraf from 'rimraf';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as _ from 'lodash';
 
 interface MasterMaple {
 
@@ -57,8 +59,10 @@ interface JuiceJob {
 type Command = MapleJob | JuiceJob;
 
 interface Task {
+  type: 'mapletask' | 'juicetask';
   jobId: string;
   id: string;
+  assignedWorker?: number;
   state: 'waiting' | 'progress';
 }
 
@@ -70,6 +74,10 @@ interface MapleTask extends Task {
 interface JuiceTask extends Task {
   type: 'juicetask';
   inputKeys: string[];
+}
+
+interface WorkerQuery {
+
 }
 
 const WorkerPort = 54321;
@@ -131,7 +139,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
    * Queue of jobs which have yet to complete.
    * When a job is done, it is removed from the head of the array.
    */
-  let commandQueue: Command[] = [];
+  let commandQueue = new ReactiveQueue<Command>();
 
   /**
    * The pool of tasks for the current command.
@@ -184,6 +192,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         state: 'waiting'
       };
       job.taskIds.push(task.id);
+      taskPool.set(task.id, task);
     }
     commandQueue.push(job);
   });
@@ -207,6 +216,50 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
   }
 
+  function workerRequest(api: string, id: number, body?: Task | WorkerQuery) {
+    return rp({
+      uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:${WorkerPort}/${api}`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: body || {},
+      json: true,
+      encoding: 'utf8',
+      gzip: false
+    });
+  }
+
+  // scheduling logic
+  commandQueue.subscribe(async job => {
+    // find workers
+    let members = swim.members().map(x => ipToID(x.host));
+    members = _.shuffle(members);
+    // find tasks
+    let pendingTasks: Task[] = [];
+    for (let key of taskPool.keys()) {
+      let task = taskPool.get(key);
+      if (task.state === 'waiting') {
+        pendingTasks.push(task);
+      }
+    }
+    pendingTasks = _.shuffle(pendingTasks);
+    // assign tasks to workers
+    let assignedTasks: Task[] = [];
+    for (let i = 0; i < members.length; i++) {
+      pendingTasks[i].assignedWorker = members[i];
+      pendingTasks[i].state = 'progress';
+      assignedTasks.push(pendingTasks[i]);
+    }
+    // send tasks
+    await Promise.all(assignedTasks.map(task => workerRequest(
+      task.type === 'mapletask' ? 'mapleJob' : 'juiceJob',
+      task.assignedWorker,
+      task)));
+    // start querying worker states
+    console.log('Job ${job.scriptName} done');
+  });
+
   ///
   /// master client
   ///
@@ -214,18 +267,18 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   let haveLeader = Bluebird.defer();
   leaderStream.skip(1).take(1).do(() => haveLeader.resolve()).subscribe();
 
-  async function masterRequest(api: string, body: MasterMaple | MasterJuice | MasterQuery) {
+  async function masterRequest(api: string, body?: MasterMaple | MasterJuice | MasterQuery) {
     await haveLeader.promise;
     let id = paxos().valueOr(1);
-    return rp({
+    return await rp({
       uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:${MasterPort}/${api}`,
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
       body: body || {},
       json: true,
-      encoding: null,
+      encoding: 'utf8',
       gzip: false
     });
   }

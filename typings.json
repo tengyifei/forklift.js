@@ -8,6 +8,7 @@
     "express-serve-static-core": "registry:dt/express-serve-static-core#4.0.0+20161012061536",
     "form-data": "registry:dt/form-data#0.0.0+20160724024111",
     "line-reader": "registry:dt/line-reader#0.0.0+20160316155526",
+    "lodash": "registry:dt/lodash#4.14.0+20161110215204",
     "mime": "registry:dt/mime#0.0.0+20160316155526",
     "mkdirp": "registry:dt/mkdirp#0.3.0+20160317120654",
     "mocha": "registry:dt/mocha#2.2.5+20161028141524",
