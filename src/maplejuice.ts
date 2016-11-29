@@ -96,6 +96,8 @@ const MasterPort = 54777;
 
 const intermediateLocation = 'mp_tmp';
 
+let server: http.Server = null;
+
 /**
  * Maple:
  * 1. Split dataset and upload as `mapleExe_${1..N}`
@@ -223,7 +225,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   ///
 
   const masterApp = express();
-  let server: http.Server = null;
   masterApp.use(bodyParser.json());
 
   masterApp.post('/maple', (req, res) => {
