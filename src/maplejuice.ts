@@ -393,10 +393,12 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     let leader = await withLeader();
     // upload maple script
     let mapleScriptName = path.basename(mapleExe, '.js');
+    console.log(`Uploading Maple script ${mapleScriptName}`);
     await fileSystemProtocol.put(mapleScriptName, () => fs.createReadStream(mapleExe));
     // split and upload dataset
     let dataStreams = partitionDataset(sourceDirectory, numMaples);
     let datasetPrefix = Math.round(Math.random() * 1000000);
+    console.log(`Uploading dataset`);
     await Promise.all(dataStreams.map((stream, index) =>
       fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${index}`, () => {
         // if error occurred during upload (this is invoked a second time)
