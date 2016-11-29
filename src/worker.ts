@@ -65,6 +65,8 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       // write worker output to file
       msg.kvs.forEach(kv => {
         let [key, value] = kv;
+        // ignore empty keys
+        if (key === '') return;
         if (kvFiles.has(kv[0]) === false) {
           // create new file
           let output = outputs(key);
