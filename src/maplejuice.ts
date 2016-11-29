@@ -328,7 +328,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     pendingTasks = _.shuffle(pendingTasks);
     // assign tasks to workers
     let assignedTasks: Task[] = [];
-    for (let i = 0; i < members.length; i++) {
+    for (let i = 0; i < members.length && i < pendingTasks.length; i++) {
       pendingTasks[i].assignedWorker = members[i];
       pendingTasks[i].state = 'progress';
       assignedTasks.push(pendingTasks[i]);
