@@ -209,14 +209,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   let taskPool = new Map<string, Task>();
 
   let ourId = ipToID(swim.whoami());
-  // start master program if we are the leader
-  leaderStream.subscribe(id => {
-    if (id === ourId) {
-      startMapleJuiceMaster();
-    } else {
-      stopMapleJuiceMaster();
-    }
-  });
 
   ///
   /// master server
@@ -430,6 +422,15 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   {
     let leader = await withLeader();
   }
+
+  // start master program if we are the leader
+  leaderStream.subscribe(id => {
+    if (id === ourId) {
+      startMapleJuiceMaster();
+    } else {
+      stopMapleJuiceMaster();
+    }
+  });
 
   return { maple, juice };
 
