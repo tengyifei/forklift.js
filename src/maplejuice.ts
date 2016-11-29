@@ -355,7 +355,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   ///
 
   let haveLeader = Bluebird.defer();
-  leaderStream.skip(1).take(1).do(() => haveLeader.resolve()).subscribe();
+  leaderStream.take(1).do(() => haveLeader.resolve()).subscribe();
 
   async function masterRequest(api: string, body?: MasterMaple | MasterJuice | MasterQuery | MasterLock) {
     await haveLeader.promise;
@@ -390,6 +390,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     intermediatePrefix: string,
     sourceDirectory: string)
   {
+    console.log('la')
     let leader = await withLeader();
     // upload maple script
     let mapleScriptName = path.basename(mapleExe, '.js');
