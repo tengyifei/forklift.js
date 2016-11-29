@@ -12,7 +12,7 @@ const expect = chai.expect;
 // module to be tested
 import { maple } from '../worker';
 
-describe.only('Worker', function () {
+describe('Worker', function () {
   it('handles maple', async function () {
     let testData =
 `apple bla apple

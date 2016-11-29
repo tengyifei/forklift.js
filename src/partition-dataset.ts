@@ -46,7 +46,7 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
     }
 
   }
-  const streams = Array.apply(null, Array(numPartition)).map(() => new PartitionedStream());
+  const streams: PartitionedStream[] = Array.apply(null, Array(numPartition)).map(() => new PartitionedStream());
 
   // get a rough partition of the files
   // actual partition may vary due to the exact position of new lines
@@ -56,19 +56,27 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
     let totalSize = sizes.reduce((a, b) => a + b, 0);
     let individualSize = Math.round(totalSize / numPartition);
     let fileStream: fs.ReadStream[] = [];
-    filestats.forEach(([file, _]) => fileStream.push(fs.createReadStream(file)));
+    if (filestats.length > 0) {
+      fileStream.push(fs.createReadStream(filestats[0][0]));
+    } else {
+      return 0;
+    }
     
     // pipe everything sequentially into our writable stream
     let masterStream = new MasterStream();
-    fileStream[0].pipe(masterStream, { end: filestats.length === 1 });
-    for (let i = 0; i < filestats.length - 1; i++) {
-      fileStream[i].on('end', (idx => () =>
+    let cb = idx => () => {
+      if (idx < filestats.length - 1) {
+        // push next file
+        fileStream.push(fs.createReadStream(filestats[idx + 1][0]));
+        fileStream[idx + 1].on('end', cb(idx + 1));
         // separate files with newline
         masterStream.write(new Buffer('\n'), () =>
           // pipe next file
-          fileStream[idx + 1].pipe(masterStream, { end: idx + 1 === filestats.length - 1 }))
-      )(i));
-    }
+          fileStream[idx + 1].pipe(masterStream, { end: idx + 1 === filestats.length - 1 }));
+      }
+    };
+    fileStream[0].on('end', cb(0));
+    fileStream[0].pipe(masterStream, { end: filestats.length === 1 });
 
     // terminate all streams after the masterStream is clear
     masterStream.on('finish', () =>
