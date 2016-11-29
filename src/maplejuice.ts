@@ -167,7 +167,11 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     let keys = await runMaple(
       mapleScript,
       fs.createReadStream(`${intermediateLocation}/${inputFile}`),
-      key => { let s = fs.createWriteStream(`${intermediateLocation}/${key}`); writes.push(streamToPromise(s)); return s; });
+      key => {
+        let s = fs.createWriteStream(`${intermediateLocation}/${encodeURIComponent(key)}`);
+        writes.push(streamToPromise(s));
+        return s;
+      });
     // wait for intermediate results to be written to disk
     await Promise.all(writes);
     // upload results
@@ -177,7 +181,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       await masterRequest('lock', { key: keys[i] });
       // perform append
       await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
-        () => fs.createReadStream(`${intermediateLocation}/${keys[i]}`));
+        () => fs.createReadStream(`${intermediateLocation}/${encodeURIComponent(keys[i])}`));
       // release lock from master
       await masterRequest('unlock', { key: keys[i] });
     }
