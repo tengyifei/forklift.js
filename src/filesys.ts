@@ -3,6 +3,7 @@ import swimFuture from './swim';
 import { ipToID, MemberState } from './swim';
 import * as Swim from 'swim';
 import * as rp from 'request-promise';
+import * as Request from 'request';
 import * as Bluebird from 'bluebird';
 import * as crypto from 'crypto';
 import * as bodyParser from 'body-parser';
@@ -11,7 +12,6 @@ import * as mkdirp from 'mkdirp';
 import * as stream from 'stream';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
-var heapdump = require('heapdump');
 
 const storeLocation = 'store';
 const writeFile = (<(x: string, y: Buffer) => Promise<void>> <any> Bluebird.promisify(fs.writeFile));
@@ -69,7 +69,8 @@ async function request(
     initialTime = new Date().getTime();
   }
   let makePromise = () => {
-    let p = rp({
+    let maker = writeStreamProvider ? Request : rp;
+    let p = maker({
       uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
       method: 'POST',
       headers: {
@@ -84,9 +85,6 @@ async function request(
       let totalSize = 1;
       let stream = writeStreamProvider();
       let result = Bluebird.defer<number>();
-      setTimeout(() => {
-        heapdump.writeSnapshot('./' + Date.now() + '.heapsnapshot');
-      }, 3000);
       p.on('data', data => {
         let haveSpace = stream.write(data);
         if (!haveSpace) {
@@ -98,8 +96,9 @@ async function request(
       p.on('error', e => { stream.emit('error', e); result.reject(e); });
       p.on('end', () => { stream.end(); result.resolve(totalSize); });
       return result.promise;
+    } else {
+      return <Bluebird<Buffer | number>> <any> p;
     }
-    return <Bluebird<Buffer | number>> <any> p;
   };
   return makePromise()
   .catch(err => {

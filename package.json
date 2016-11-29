@@ -36,7 +36,7 @@
     "mkdirp": "^0.5.1",
     "mod-exp": "0.0.0",
     "msgpack-lite": "^0.1.26",
-    "request": "^2.78.0",
+    "request": "^2.79.0",
     "request-promise": "^4.1.1",
     "require-dir": "^0.3.1",
     "rimraf": "^2.5.4",
