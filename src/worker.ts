@@ -67,6 +67,8 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
         let [key, value] = kv;
         // ignore empty keys
         if (key === '') return;
+        // ignore keys that are too long
+        if (key.length > 500) return;
         if (kvFiles.has(kv[0]) === false) {
           // create new file
           let output = outputs(key);
