@@ -96,8 +96,6 @@ const MasterPort = 54777;
 
 const intermediateLocation = 'mp_tmp';
 
-let server: http.Server = null;
-
 /**
  * Maple:
  * 1. Split dataset and upload as `mapleExe_${1..N}`
@@ -225,6 +223,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   ///
 
   const masterApp = express();
+  let server: http.Server = null;
   masterApp.use(bodyParser.json());
 
   masterApp.post('/maple', (req, res) => {
@@ -292,14 +291,14 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     res.sendStatus(200);
   });
 
-  function startMapleJuiceMaster() {
+  const startMapleJuiceMaster = () => {
     if (!server) {
       server = masterApp.listen(MasterPort);
       console.log('Start MapleJuice Master');
     }
   }
 
-  function stopMapleJuiceMaster() {
+  const stopMapleJuiceMaster = () => {
     if (server) {
       console.log('Stop MapleJuice Master');
       server.close();
