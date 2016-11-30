@@ -96,6 +96,31 @@ const MasterPort = 54777;
 
 const intermediateLocation = 'mp_tmp';
 
+function sanitizeForFile(name: string) {
+  name = encodeURIComponent(name);
+  name = name.split('').map(x => {
+    if (x === '.'
+     || x === '$'
+     || x === '/'
+     || x === ':'
+     || x === '\\'
+     || x === '?'
+     || x === '*') {
+      let charCode = x.charCodeAt(0);
+      let str;
+      if (charCode > 1000)
+        str = '' + charCode;
+      else if (charCode > 100)
+        str = '0' + charCode;
+      else if (charCode > 10)
+        str = '00' + charCode;
+      else
+        str = '000' + charCode;
+      return '$' + str;
+    }
+  }).join('');
+}
+
 /**
  * Maple:
  * 1. Split dataset and upload as `mapleExe_${1..N}`
@@ -168,7 +193,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       mapleScript,
       fs.createReadStream(`${intermediateLocation}/${inputFile}`),
       key => {
-        let s = fs.createWriteStream(`${intermediateLocation}/${encodeURIComponent(key)}`);
+        let s = fs.createWriteStream(`${intermediateLocation}/${sanitizeForFile(key)}`);
         writes.push(streamToPromise(s));
         return s;
       });
@@ -181,7 +206,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       await masterRequest('lock', { key: keys[i] });
       // perform append
       await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
-        () => fs.createReadStream(`${intermediateLocation}/${encodeURIComponent(keys[i])}`));
+        () => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(keys[i])}`));
       // release lock from master
       await masterRequest('unlock', { key: keys[i] });
     }
