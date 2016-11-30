@@ -166,14 +166,14 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     if (!req.body) return res.sendStatus(400);
     let task: Task = req.body;
     if (currentTask) {
-      return res.status(400).send('Task ${current.id} in progress');
+      return res.status(400).send({ error: 'Task ${current.id} in progress' });
     }
     if (task.type !== 'mapletask') {
-      return res.status(400).set('Not a Maple task');
+      return res.status(400).set({ error: 'Not a Maple task' });
     }
     // start
     currentTask = task;
-    res.status(200).set('Working');
+    res.status(200).send({ result: 'Working' });
     // download maple script
     console.log(`Maple: Downloading script ${task.scriptName}`);
     let mapleScript: string;
@@ -204,11 +204,14 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     for (let i = 0; i < keys.length; i++) {
       // get lock from master
       await masterRequest('lock', { key: keys[i] });
+      console.log(`lock ${keys[i]}`);
       // perform append
       await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
         () => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(keys[i])}`));
+      console.log('upload');
       // release lock from master
       await masterRequest('unlock', { key: keys[i] });
+      console.log('unlock');
     }
     // append key set
     await masterRequest('lock', { key: `KeySet_${task.scriptName}` });
@@ -220,7 +223,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   workerApp.post('/juiceTask', (req, res) => {
     if (!req.body) return res.sendStatus(400);
     if (currentTask) {
-      return res.status(403).send('Task ${current.id} in progress');
+      return res.status(403).send({ error: 'Task ${current.id} in progress' });
     }
   });
 
@@ -280,6 +283,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       taskPool.set(task.id, task);
     }
     commandQueue.push(job);
+
+    res.sendStatus(200);
   });
 
   masterApp.post('/juice', (req, res) => {
@@ -297,7 +302,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
     // try locking existing semaphore
     await locks[key].acquire();
-    res.sendStatus(200);
+    res.status(200).send({ state: 'locked' });
   });
 
   masterApp.post('/unlock', (req, res) => {
@@ -309,7 +314,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     } else {
       locks[key].release();
     }
-    res.sendStatus(200);
+    res.status(200).send({ state: 'unlocked' });
   });
 
   const startMapleJuiceMaster = () => {
