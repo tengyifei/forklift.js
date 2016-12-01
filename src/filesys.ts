@@ -364,8 +364,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     await firstFewSuccess(mapItr(hashKeyActive(key), id => () =>
       request(id, 'query', key)
       .then(resp => JSON.parse(resp.toString()))
-      .then(x => x.present ? x : Promise.reject(`Not found on ${id}`))
-      .then(() => stored.push(id))), 10);
+      .then(x => x.present ? stored.push(id) : Promise.resolve(NaN))), 10);
     return dedupe(stored);
   };
 

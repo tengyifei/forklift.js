@@ -204,14 +204,11 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     for (let i = 0; i < keys.length; i++) {
       // get lock from master
       await masterRequest('lock', { key: keys[i] });
-      console.log(`lock ${keys[i]}`);
       // perform append
       await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
         () => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(keys[i])}`));
-      console.log('upload');
       // release lock from master
       await masterRequest('unlock', { key: keys[i] });
-      console.log('unlock');
     }
     // append key set
     await masterRequest('lock', { key: `KeySet_${task.scriptName}` });
@@ -295,7 +292,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
 
   masterApp.post('/lock', async (req, res) => {
     if (!req.body) return res.sendStatus(400);
-    console.log(`lock ${req.body.key}`);
     let key: string = req.body.key;
     if (!locks[key]) {
       // initialize
@@ -303,13 +299,11 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
     // try locking existing semaphore
     await locks[key].acquire();
-    console.log(`grabbed lock`);
     res.status(200).send({ state: 'locked' });
   });
 
   masterApp.post('/unlock', (req, res) => {
     if (!req.body) return res.sendStatus(400);
-    console.log(`unlock ${req.body.key}`);
     let key: string = req.body.key;
     if (!locks[key]) {
       // initialize
