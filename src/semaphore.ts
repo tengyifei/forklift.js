@@ -24,7 +24,7 @@ export default class Semaphore {
    */
   constructor(max?: number) {
     this.max = max || 1;
-    this.count = max;
+    this.count = this.max;
     this.queue = [];
   }
 
