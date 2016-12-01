@@ -373,7 +373,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       task.assignedWorker,
       task)));
     // start querying worker states
-    console.log('Job ${job.scriptName} done');
+    console.log(`Job ${job.scriptName} done`);
   });
 
   ///
@@ -425,7 +425,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     let dataStreams = partitionDataset(sourceDirectory, numMaples);
     let datasetPrefix = Math.round(Math.random() * 1000000);
     console.log(`Uploading dataset`);
-    await Promise.all(dataStreams.map((stream, index) =>
+    await Bluebird.map(dataStreams, (stream, index) =>
       fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${index}`, () => {
         // if error occurred during upload (this is invoked a second time)
         if ((<any> stream).usedDataset) {
@@ -435,7 +435,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         }
         (<any> stream).usedDataset = true;
         return stream;
-      })));
+      }), { concurrency: 1 });
     // start job
     await masterRequest('maple', {
       mapleScriptName,
@@ -443,7 +443,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       datasetPrefix,
       intermediatePrefix
     });
-    console.log('Maple job ${mapleScriptName} sent');
+    console.log(`Maple job ${mapleScriptName} sent`);
   }
 
   async function juice(

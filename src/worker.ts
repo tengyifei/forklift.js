@@ -88,7 +88,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
   (<(x: stream.Readable, y: (z: string) => void) => Promise<void>> <any>
     Bluebird.promisify(lineReader.eachLine))(data, line => {
       // TODO: batching
-      if (line.length !== 0) worker.postMessage({ type: 'line', line });
+      if (line.length !== 0) process.nextTick(() => worker.postMessage({ type: 'line', line }));
   })
   .then(() => worker.postMessage({ type: 'done' }))
   .catch(err => {
