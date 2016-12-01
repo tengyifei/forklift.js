@@ -295,7 +295,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
 
   masterApp.post('/lock', async (req, res) => {
     if (!req.body) return res.sendStatus(400);
-    console.log('lock ${req.body.key}');
+    console.log(`lock ${req.body.key}`);
     let key: string = req.body.key;
     if (!locks[key]) {
       // initialize
@@ -308,7 +308,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
 
   masterApp.post('/unlock', (req, res) => {
     if (!req.body) return res.sendStatus(400);
-    console.log('unlock ${req.body.key}');
+    console.log(`unlock ${req.body.key}`);
     let key: string = req.body.key;
     if (!locks[key]) {
       // initialize
