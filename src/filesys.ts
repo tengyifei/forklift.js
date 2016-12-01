@@ -346,7 +346,12 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
 
   const append = async (key: string, file: () => stream.Readable) => {
     let nodesWithKey = await ls(key);
-    await Promise.all(nodesWithKey.map(node => request(node, 'append', key, file)));
+    if (nodesWithKey.length === 0) {
+      // this is a new file; treat is as upload
+      return await put(key, file);
+    } else {
+      await Promise.all(nodesWithKey.map(node => request(node, 'append', key, file)));
+    }
   };
 
   const put = (key: string, file: () => stream.Readable) =>
