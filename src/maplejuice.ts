@@ -303,6 +303,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
     // try locking existing semaphore
     await locks[key].acquire();
+    console.log(`grabbed lock`);
     res.status(200).send({ state: 'locked' });
   });
 
