@@ -204,11 +204,14 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     for (let i = 0; i < keys.length; i++) {
       // get lock from master
       await masterRequest('lock', { key: keys[i] });
+      console.log(`lock ${keys[i]}`);
       // perform append
       await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
         () => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(keys[i])}`));
+      console.log('upload');
       // release lock from master
       await masterRequest('unlock', { key: keys[i] });
+      console.log('unlock');
     }
     // append key set
     await masterRequest('lock', { key: `KeySet_${task.scriptName}` });
