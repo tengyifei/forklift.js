@@ -173,6 +173,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
     // start
     currentTask = task;
+    let startTime = new Date().getMilliseconds();
     res.status(200).send({ result: 'Working' });
     // download maple script
     console.log(`Maple: Downloading script ${task.scriptName}`);
@@ -216,7 +217,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     await masterRequest('unlock', { key: `KeySet_${task.scriptName}` });
     // signal master that we're done
 
-    console.log('Maple: Done');
+    let endTime = new Date().getMilliseconds();
+    console.log(`Maple: Done in ${(endTime - startTime) / 1000} seconds`);
   });
 
   workerApp.post('/juiceTask', (req, res) => {
