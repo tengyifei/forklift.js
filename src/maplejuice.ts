@@ -324,6 +324,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   masterApp.post('/taskDone', (req, res) => {
     if (!req.body) return res.sendStatus(400);
     taskDoneEvents.next(req.body);
+    res.sendStatus(200);
   });
 
   let locks: { [x: string]: Semaphore } = {};

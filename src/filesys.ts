@@ -13,7 +13,7 @@ import * as stream from 'stream';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
 
-const debugFS = false;
+const debugFS = true;
 
 const debugLog = (...args) => {
   if (debugFS)
