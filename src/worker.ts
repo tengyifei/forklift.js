@@ -100,7 +100,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       if (line.length !== 0) {
         lineBatch.push(line);
       }
-      if (lineBatch.length > 100) {
+      if (lineBatch.length > 500) {
         worker.postMessage({ type: 'line', lines: lineBatch });
         lineBatch = [];
       }
