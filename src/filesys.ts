@@ -13,6 +13,13 @@ import * as stream from 'stream';
 import * as rimraf from 'rimraf';
 const modexp = require('mod-exp');
 
+const debugFS = false;
+
+const debugLog = (...args) => {
+  if (debugFS)
+    (<any> console.log)(...args);
+};
+
 const storeLocation = 'store';
 const writeFile = Bluebird.promisify((f: string, data, cb) => fs.writeFile(f, data, cb));
 
@@ -62,13 +69,13 @@ async function request(
   writeStreamProvider?: () => stream.Writable): Promise<Buffer> {
   let initialTime: number;
   if (api === 'download') {
-    console.log(`Downloading ${key} from node ${id}`);
+    debugLog(`Downloading ${key} from node ${id}`);
     initialTime = new Date().getTime();
   } else if (api === 'upload') {
-    console.log(`Uploading ${key} to node ${id}`);
+    debugLog(`Uploading ${key} to node ${id}`);
     initialTime = new Date().getTime();
   } else if (api === 'append') {
-    console.log(`Appending ${key} to node ${id}`);
+    debugLog(`Appending ${key} to node ${id}`);
     initialTime = new Date().getTime();
   }
   let makePromise = () => {
@@ -128,7 +135,7 @@ async function request(
         length = x;
     }
     if (initialTime) {
-      console.log(`Time taken: ${ (new Date().getTime() - initialTime) / 1000 } seconds. Bandwidth: ${
+      debugLog(`Time taken: ${ (new Date().getTime() - initialTime) / 1000 } seconds. Bandwidth: ${
         length / 1024 / 1024 / ((new Date().getTime() - initialTime) / 1000) } MB/s`);
     }
     if (x instanceof Buffer)
@@ -244,7 +251,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   app.post('/download', (req, res) => {
     let key = req.header('sdfs-key');
     if (key && files[key]) {
-      console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is downloading ${key} from us`);
+      debugLog(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is downloading ${key} from us`);
       let stream = fs.createReadStream(localStorageKey(key));
       stream.pipe(res);
     } else {
@@ -256,7 +263,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   app.post('/upload', (req, res) => {
     let key = req.header('sdfs-key');
     if (key) {
-      console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is uploading ${key} to us`);
+      debugLog(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is uploading ${key} to us`);
       files[key] = localStorageKey(key);
       let stream = fs.createWriteStream(localStorageKey(key));
       let totalSize = 0;
@@ -276,7 +283,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   app.post('/append', (req, res) => {
     let key = req.header('sdfs-key');
     if (key) {
-      console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is appending ${key} to us`);
+      debugLog(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} is appending ${key} to us`);
       files[key] = localStorageKey(key);
       let stream = fs.createWriteStream(localStorageKey(key), {
         flags: 'a'
@@ -306,7 +313,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
         res.sendStatus(200);
       } else {
         // need to replicate
-        console.log(`Attempt to replicate ${key} due to node failure`);
+        debugLog(`Attempt to replicate ${key} due to node failure`);
         inFlightReplication[key] = true;
         sequentialAttempt(getAllActiveReplicants(key)
           .map(id =>
@@ -339,7 +346,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   // removes the file from memory
   app.post('/delete', (req, res) => {
     let key = req.header('sdfs-key');
-    console.log(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} ordering us to delete ${key}`);
+    debugLog(`Node ${ipToID(`${req.connection.remoteAddress}:22895`)} ordering us to delete ${key}`);
     if (key) {
       res.send({ deleted: !!files[key] });
       delete files[key];
@@ -393,7 +400,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
   }
 
   return await Bluebird.promisify((p: number, cb) => app.listen(p, cb))(22895)
-  .then(() => console.log('Initial replication'))
+  .then(() => debugLog('Initial replication'))
   .then(async () => {
     // recreate data folder
     await Bluebird.promisify(rimraf)(storeLocation);
@@ -481,7 +488,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
           }
           if (isNaN(replicant) !== true) {
             // instruct replicant to grab file
-            console.log(`Requesting ${replicant} to backup ${key}`);
+            debugLog(`Requesting ${replicant} to backup ${key}`);
             request(replicant, 'push', key)
             .catch(err => {
               console.error('Push failure: ', JSON.stringify(err));
@@ -489,7 +496,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
               request(replicant, 'push', key);
             });
           } else {
-            console.log(`Cannot find on-failure replication candidate for ${key}`);
+            debugLog(`Cannot find on-failure replication candidate for ${key}`);
           }
         });
       }
