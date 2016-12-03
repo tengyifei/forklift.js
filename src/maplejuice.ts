@@ -515,8 +515,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
                   console.warn(`Worker ${id} is down. Rescheduling.`);
                   activeWorkers.delete(id);
                   for (let [taskId, task] of taskPool.entries()) {
-                    if (task.assignedWorker === id) {
-                      task.state == 'waiting';
+                    if (task.assignedWorker === id && task.state === 'progress') {
+                      task.state = 'waiting';
                       taskAvailableEvents.next(task);
                     }
                   }
