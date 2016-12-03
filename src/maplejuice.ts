@@ -412,6 +412,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         waitingTask = wt.task;
         // find first available worker
         let members = swim.members().map(x => ipToID(x.host));
+        members = _.shuffle(members);
         for (let i = 0; i < members.length; i++) {
           if (activeWorkers.has(i) === false) {
             freeWorker = members[i];
@@ -447,7 +448,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
           if (err.statusCode === InProgressErrorCode) {
             // we mistakenly thought that this worker was free
             activeWorkers.add(freeWorker);
-            return;
           }
           console.error(err.body ? err.body : err);
           // retry in a while
@@ -511,6 +511,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
           for (let [taskId, task] of taskPool.entries()) {
             if (task.assignedWorker === id && task.state === 'progress') {
               let taskId = task.id;
+              // if any fails, put the task back to waiting, so that it may be rescheduled
               let working = await workerRequest('taskStatus', id, { taskId: taskId })
               .then(res => res.id && taskPool.get(res.id).jobId === job.id
                           ? Maybe.just<Task>(res)
@@ -538,7 +539,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
             }
           }
         }
-        // if any fails, put the task back to waiting, so that it may be rescheduled
       };
       let done = await Promise.race([
         jobDone.promise.then(() => true),
