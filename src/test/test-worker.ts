@@ -30,7 +30,10 @@ pen`;
     let script =
 `
 function mapper(line) {
-  return line.split(' ').map(word => [word, 1]);
+  return line.split(' ')
+  .map(word => word.replace(/^[^a-z\d]*|[^a-z\d]*$/gi, ''))  // trim symbols
+  .map(word => word.toLowerCase())  // to lower case
+  .map(word => [word, 1]);  // to key-value pair
 }
 `;
     let input = new Stream.Readable();
