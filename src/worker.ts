@@ -45,7 +45,18 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
     function run(msg: MasterMessage) {
       if (msg.type === 'line') {
         // process this batch
-        let kvs = [].concat(...msg.lines.map(mapper));
+        let kvs = (<[string, string][]>[]).concat(...msg.lines.map(mapper));
+        let collateKv: { [x: string]: string[] } = {};
+        kvs.forEach(kv => {
+          let [key, value] = kv;
+          // ignore empty keys
+          if (key === '') return;
+          // ignore keys that are too long
+          if (key.length > 500) return;
+          if (!collateKv[key]) collateKv[key] = [];
+          collateKv[key].push(value);
+        });
+        kvs = [].concat(...Object.keys(collateKv).map(k => collateKv[k].map(v => <[string, string]> [k, v])));
         postMessage({ type: 'kvs', kvs }, '*');
       } else {
         postMessage({ type: 'dack' }, '*');
@@ -66,10 +77,6 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       // write worker output to file
       msg.kvs.forEach(kv => {
         let [key, value] = kv;
-        // ignore empty keys
-        if (key === '') return;
-        // ignore keys that are too long
-        if (key.length > 500) return;
         if (kvFiles.has(kv[0]) === false) {
           // create new file
           let output = outputs(key);
