@@ -403,7 +403,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       taskAvailableEvents.map(t => ({ type: 'task', task: t})))
     .subscribe(wt => {
       let waitingTask: Task;
-      let freeWorker: number = -1;
+      let freeWorker: number = NaN;
       if (wt.type === 'task') {
         waitingTask = (<any> wt).task;
         // find first available worker
@@ -426,7 +426,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         }
       }
       // try to schedule
-      if (waitingTask && (freeWorker !== -1)) {
+      if (waitingTask && isFinite(freeWorker)) {
         waitingTask.assignedWorker = freeWorker;
         waitingTask.state = 'progress';
         activeWorkers.add(freeWorker);
