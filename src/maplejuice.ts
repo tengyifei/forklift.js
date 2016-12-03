@@ -483,6 +483,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
                       task.state == 'waiting';
                     }
                   }
+                  activeWorkers.delete(id);
                 }
               });
             }

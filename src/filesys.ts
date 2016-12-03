@@ -86,7 +86,7 @@ async function request(
       gzip: false
     });
     // handle read failure
-    readable.on('error', err => p.emit('error', err));
+    if (readable) readable.on('error', err => p.emit('error', err));
     if (writeStreamProvider) {
       let totalSize = 1;
       let stream = writeStreamProvider();
