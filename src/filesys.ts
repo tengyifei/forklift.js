@@ -73,6 +73,7 @@ async function request(
   }
   let makePromise = () => {
     let maker = writeStreamProvider ? Request : rp;
+    let readable = body ? body instanceof Buffer ? undefined : body() : undefined;
     let p = maker({
       uri: `http://fa16-cs425-g06-${ id < 10 ? '0' + id : id }.cs.illinois.edu:22895/${api}`,
       method: 'POST',
@@ -80,9 +81,13 @@ async function request(
         'sdfs-key': key,
         'Content-Type': 'application/octet-stream',
       },
-      body: body ? body instanceof Buffer ? body : body() : undefined,
+      body: body ? body instanceof Buffer ? body : readable : undefined,
       encoding: null,
       gzip: false
+    });
+    // handle read failure
+    readable.on('error', err => {
+      p.emit('error', err);
     });
     if (writeStreamProvider) {
       let totalSize = 1;
@@ -96,6 +101,7 @@ async function request(
         }
         totalSize += data.length;
       });
+      // no need to double report the error
       p.on('error', e => { /* stream.emit('error', e); */ result.reject(e); });
       p.on('end', () => { stream.end(); result.resolve(totalSize); });
       return result.promise;
