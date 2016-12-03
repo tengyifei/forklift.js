@@ -14,7 +14,7 @@ type MapleFunction = (line: string) => [string, string][];
 
 interface NewLine {
   type: 'line';
-  line: string[];
+  lines: string[];
 }
 interface Done {
   type: 'done';
@@ -45,7 +45,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
     function run(msg: MasterMessage) {
       if (msg.type === 'line') {
         // process this batch
-        let kvs = [].concat(...msg.line.map(mapper));
+        let kvs = [].concat(...msg.lines.map(mapper));
         postMessage({ type: 'kvs', kvs }, '*');
       } else {
         postMessage({ type: 'dack' }, '*');
@@ -94,11 +94,11 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
         lineBatch.push(line);
       }
       if (lineBatch.length > 100) {
-        worker.postMessage({ type: 'line', lineBatch });
+        worker.postMessage({ type: 'line', lines: lineBatch });
         lineBatch = [];
       }
   })
-  .then(() => worker.postMessage({ type: 'line', lineBatch }))    // post remaining batch
+  .then(() => worker.postMessage({ type: 'line', lines: lineBatch }))    // post remaining batch
   .then(() => Bluebird.delay(50))
   .then(() => worker.postMessage({ type: 'done' }))
   .catch(err => {
