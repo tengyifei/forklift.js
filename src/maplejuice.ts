@@ -415,7 +415,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         let members = swim.members().map(x => ipToID(x.host));
         members = _.shuffle(members);
         for (let i = 0; i < members.length; i++) {
-          if (activeWorkers.has(i) === false) {
+          if (activeWorkers.has(members[i]) === false) {
             freeWorker = members[i];
             break;
           }
@@ -555,7 +555,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
 
   swim.on(Swim.EventType.Change, update => {
     if (update.state === MemberState.Alive) {
-      // wait for initialization
+      // leave time for initialization
       setTimeout(() => workerAvailableEvents.next(ipToID(update.host)), 1500);
     }
   });
