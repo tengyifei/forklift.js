@@ -8,6 +8,7 @@ import { ReactiveQueue } from './producer-consumer';
 import { makeid, BufferingStream } from './utils';
 import { maple as runMaple } from './worker';
 import Semaphore from './semaphore';
+import { Maybe } from './maybe';
 import * as http from 'http';
 import * as Swim from 'swim';
 import * as Bluebird from 'bluebird';
@@ -157,6 +158,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   /// worker server
   ///
   let currentTask: Task;
+  let historicalTasks = new Map<string, Task>();
 
   // recreate tmp folder
   await Bluebird.promisify(rimraf)(intermediateLocation);
@@ -176,6 +178,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
     // start
     currentTask = task;
+    historicalTasks.set(task.id, task);
     let startTime = Date.now();
     res.status(200).send({ result: 'Working' });
     // download maple script
@@ -233,6 +236,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       (workerDoneTime - startTime) / 1000} seconds`);
     // signal master that we're done
     await masterRequest('taskDone', task);
+    currentTask = null;
   });
 
   workerApp.post('/juiceTask', (req, res) => {
@@ -240,6 +244,11 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     if (currentTask) {
       return res.status(403).send({ error: 'Task ${current.id} in progress' });
     }
+  });
+
+  workerApp.post('/juiceTask', (req, res) => {
+    if (!req.body) return res.sendStatus(400);
+    res.status(200).send(historicalTasks.get(req.body.taskId));
   });
 
   await Bluebird.promisify((x: number, cb) => workerApp.listen(x, cb))(WorkerPort);
@@ -383,21 +392,27 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       }
     }
     pendingTasks = _.shuffle(pendingTasks);
+    let activeWorkers = new Set<number>();
     // assign tasks to workers
     let assignedTasks: Task[] = [];
     for (let i = 0; i < members.length && i < pendingTasks.length; i++) {
       pendingTasks[i].assignedWorker = members[i];
       pendingTasks[i].state = 'progress';
       assignedTasks.push(pendingTasks[i]);
+      activeWorkers.add(members[i]);
     }
     // track task state
     let jobDone = Bluebird.defer();
-    let sub = taskDoneEvents.subscribe(task => {
+    let sub = taskDoneEvents
+    .distinctUntilKeyChanged('id')    // one event per task
+    .subscribe(task => {
       if (taskPool.has(task.id)) {
         // mark as done
         if (job.id === task.jobId) {
-          taskPool.get(task.id).state = 'done';
-          job.numTaskDone += 1;
+          if (taskPool.get(task.id).state !== 'done') {
+            taskPool.get(task.id).state = 'done';
+            job.numTaskDone += 1;
+          }
           if (job.numTaskDone === job.taskIds.length) {
             // the job is done
             taskPool.clear();
@@ -405,6 +420,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
             // reset the task stream
             taskDoneEvents.complete();
             taskDoneEvents = new ReplaySubject<Task>();
+            activeWorkers = new Set<number>();
             sub.unsubscribe();
           } else {
             // see if we can schedule more tasks
@@ -444,13 +460,41 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     for (;;) {
       let queryOnce = async () => {
         // poll all current workers
+        for (let [_, id] of activeWorkers.entries()) {
+          for (let [taskId, task] of taskPool.entries()) {
+            if (task.assignedWorker === id && task.state === 'progress') {
+              let taskId = task.id;
+              let working = await workerRequest('taskStatus', id, { taskId: taskId })
+              .then(res => res.id && taskPool.get(res.id).jobId === job.id
+                          ? Maybe.just<Task>(res)
+                          : Maybe.nothing<Task>())
+              .catch(() => Maybe.nothing<Task>());
+              working.caseOf({
+                just: task => {
+                  // we're good
+                  if (task.state === 'done') {
+                    taskDoneEvents.next(task);
+                  }
+                },
+                nothing: () => {
+                  console.warn(`Worker ${id} is down. Rescheduling.`);
+                  for (let [taskId, task] of taskPool.entries()) {
+                    if (task.assignedWorker === id) {
+                      task.state == 'waiting';
+                    }
+                  }
+                }
+              });
+            }
+          }
+        }
         // if any fails, put the task back to waiting, so that it may be rescheduled
       };
       let done = await Promise.race([
         jobDone.promise.then(() => true),
         Promise.race([
           queryOnce().then(() => Bluebird.delay(1000)),
-          Bluebird.delay(500)
+          Bluebird.delay(800)
         ]).then(() => false)
       ]);
       if (done) break;
