@@ -247,7 +247,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
   });
 
-  workerApp.post('/juiceTask', (req, res) => {
+  workerApp.post('/taskStatus', (req, res) => {
     if (!req.body) return res.sendStatus(400);
     res.status(200).send(historicalTasks.get(req.body.taskId));
   });
