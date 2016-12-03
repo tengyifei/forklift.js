@@ -431,6 +431,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       // try to schedule
       if (waitingTask && isFinite(freeWorker)) {
         waitingTask.assignedWorker = freeWorker;
+        console.log(`Task ${waitingTask.id} -> Worker ${freeWorker}`);
         await workerRequest(
           waitingTask.type === 'mapletask' ? 'mapleTask' : 'juiceTask',
           waitingTask.assignedWorker,
@@ -440,7 +441,12 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
           activeWorkers.add(freeWorker);
           assigned.next(0);
         })
-        .catch(err => waitingTask.assignedWorker = NaN);
+        .catch(err => {
+          console.error(err);
+          waitingTask.assignedWorker = NaN;
+          // retry in a while
+          Bluebird.delay(500).then(() => taskAvailableEvents.next(waitingTask));
+        });
       }
     });
 
@@ -517,6 +523,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
                   for (let [taskId, task] of taskPool.entries()) {
                     if (task.assignedWorker === id && task.state === 'progress') {
                       task.state = 'waiting';
+                      task.assignedWorker = NaN;
                       taskAvailableEvents.next(task);
                     }
                   }
