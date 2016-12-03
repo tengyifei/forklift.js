@@ -99,6 +99,7 @@ const WorkerPort = 54321;
 const MasterPort = 54777;
 
 const intermediateLocation = 'mp_tmp';
+const InProgressErrorCode = 499;
 
 function sanitizeForFile(name: string) {
   name = encodeURIComponent(name);
@@ -171,7 +172,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     if (!req.body) return res.sendStatus(400);
     let task: Task = req.body;
     if (currentTask) {
-      return res.status(400).send({ error: `Task ${currentTask.id} in progress` });
+      return res.status(InProgressErrorCode).send({ error: `Task ${currentTask.id} in progress` });
     }
     if (task.type !== 'mapletask') {
       return res.status(400).set({ error: 'Not a Maple task' });
@@ -442,8 +443,13 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
           assigned.next(0);
         })
         .catch(err => {
-          console.error(err);
           waitingTask.assignedWorker = NaN;
+          if (err.statusCode === InProgressErrorCode) {
+            // we mistakenly thought that this worker was free
+            activeWorkers.add(freeWorker);
+            return;
+          }
+          console.error(err.body ? err.body : err);
           // retry in a while
           Bluebird.delay(500).then(() => taskAvailableEvents.next(waitingTask));
         });
