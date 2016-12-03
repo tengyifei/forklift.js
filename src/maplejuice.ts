@@ -2,7 +2,7 @@ import { fileSystemProtocol } from './filesys';
 import swimFuture from './swim';
 import { ipToID } from './swim';
 import { paxos, leaderStream } from './paxos';
-import { Observable } from 'rxjs/Rx';
+import { Observable, ReplaySubject } from 'rxjs/Rx';
 import { partitionDataset } from './partition-dataset';
 import { ReactiveQueue } from './producer-consumer';
 import { makeid, BufferingStream } from './utils';
@@ -21,6 +21,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as stream from 'stream';
 import * as _ from 'lodash';
+import * as msgpack from 'msgpack-lite';
 const streamToPromise: (x: stream.Writable) => Promise<void> = require('stream-to-promise');
 
 interface MasterMaple {
@@ -46,6 +47,7 @@ interface MapleJob {
   type: 'maple';
   id: string;
   taskIds: string[];
+  numTaskDone: number;
   numWorkers: number;
   scriptName: string;
   datasetPrefix: string;
@@ -59,6 +61,7 @@ interface JuiceJob {
   type: 'juice';
   id: string;
   taskIds: string[];
+  numTaskDone: number;
   numWorkers: number;
   scriptName: string;
 }
@@ -71,7 +74,7 @@ interface TaskBase {
   id: string;
   scriptName: string;
   assignedWorker?: number;
-  state: 'waiting' | 'progress';
+  state: 'waiting' | 'progress' | 'done';
 }
 
 interface MapleTask extends TaskBase {
@@ -213,15 +216,23 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       await masterRequest('unlock', { key: keys[i] });
     }
     // append key set
-    await masterRequest('lock', { key: `KeySet_${task.scriptName}` });
-
-    await masterRequest('unlock', { key: `KeySet_${task.scriptName}` });
-    // signal master that we're done
-
+    await masterRequest('lock', { key: `${task.intermediatePrefix}_KeySet` });
+    // write key set
+    let encodedKeys = msgpack.encode(keys);
+    await fileSystemProtocol.append(`${task.intermediatePrefix}_KeySet`,
+      () => {
+        let s = new stream.Readable();
+        s.push(encodedKeys);
+        s.push(null);
+        return s;
+      });
+    await masterRequest('unlock', { key: `${task.intermediatePrefix}_KeySet` });
     let endTime = Date.now();
     console.log(`Maple: Done in ${
       (endTime - startTime) / 1000} seconds. Processing time was ${
       (workerDoneTime - startTime) / 1000} seconds`);
+    // signal master that we're done
+    await masterRequest('taskDone', task);
   });
 
   workerApp.post('/juiceTask', (req, res) => {
@@ -243,6 +254,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
    * The pool of tasks for the current command.
    */
   let taskPool = new Map<string, Task>();
+
+  let taskDoneEvents = new ReplaySubject<Task>();
 
   let ourId = ipToID(swim.whoami());
 
@@ -267,6 +280,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       type: 'maple',
       id: makeid(),
       taskIds: [],
+      numTaskDone: 0,
       scriptName: mapleScriptName,
       numWorkers: numMaples,
       datasetPrefix,
@@ -293,6 +307,11 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
 
   masterApp.post('/juice', (req, res) => {
     if (!req.body) return res.sendStatus(400);
+  });
+
+  masterApp.post('/taskDone', (req, res) => {
+    if (!req.body) return res.sendStatus(400);
+    taskDoneEvents.next(req.body);
   });
 
   let locks: { [x: string]: Semaphore } = {};
@@ -371,12 +390,71 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       pendingTasks[i].state = 'progress';
       assignedTasks.push(pendingTasks[i]);
     }
-    // send tasks
+    // track task state
+    let jobDone = Bluebird.defer();
+    let sub = taskDoneEvents.subscribe(task => {
+      if (taskPool.has(task.id)) {
+        // mark as done
+        if (job.id === task.jobId) {
+          taskPool.get(task.id).state = 'done';
+          job.numTaskDone += 1;
+          if (job.numTaskDone === job.taskIds.length) {
+            // the job is done
+            taskPool.clear();
+            jobDone.resolve();
+            // reset the task stream
+            taskDoneEvents.complete();
+            taskDoneEvents = new ReplaySubject<Task>();
+            sub.unsubscribe();
+          } else {
+            // see if we can schedule more tasks
+            let freeWorker = task.assignedWorker;
+            let waitingTask: Task;
+            for (let i = 0; i < job.taskIds.length; i++) {
+              // find first waiting task
+              if (taskPool.has(job.taskIds[i])
+               && taskPool.get(job.taskIds[i]).state === 'waiting') {
+                 waitingTask = taskPool.get(job.taskIds[i]);
+                 break;
+               }
+            }
+            if (waitingTask) {
+              // schedule it
+              waitingTask.assignedWorker = task.assignedWorker;
+              waitingTask.state = 'progress';
+              workerRequest(
+                waitingTask.type === 'mapletask' ? 'mapleTask' : 'juiceTask',
+                waitingTask.assignedWorker,
+                waitingTask);
+            }
+          }
+        } else {
+          console.warn(`Task ${task.id} does not belong to job ${job.id}`);
+        }
+      } else {
+        console.warn(`Unknown task reported: ${task.id}`);
+      }
+    });
+    // send tasks to start computation
     await Promise.all(assignedTasks.map(task => workerRequest(
       task.type === 'mapletask' ? 'mapleTask' : 'juiceTask',
       task.assignedWorker,
       task)));
     // start querying worker states
+    for (;;) {
+      let queryOnce = async () => {
+        // poll all current workers
+        // if any fails, put the task back to waiting, so that it may be rescheduled
+      };
+      let done = await Promise.race([
+        jobDone.promise.then(() => true),
+        Promise.race([
+          queryOnce().then(() => Bluebird.delay(1000)),
+          Bluebird.delay(500)
+        ]).then(() => false)
+      ]);
+      if (done) break;
+    }
     console.log(`Job ${job.scriptName} done`);
   });
 

@@ -413,7 +413,7 @@ export const fileSystemProtocol = swimFuture.then(async swim => {
     });
     process.on('rejectionHandled', () => { });
   })
-  .then(() => Bluebird.delay(100).then(() => Promise.all(  // perform initial replication
+  .then(() => Bluebird.delay(50).then(() => Promise.all(  // perform initial replication
       Object.keys(getActiveMembers())
       .filter(id => +id !== ipToID(swim.whoami()))    // we're not active yet
       .map(id => requestInitial(+id, 'list_keys', '')
