@@ -609,8 +609,9 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     let dataStreams = partitionDataset(sourceDirectory, numMaples);
     let datasetPrefix = Math.round(Math.random() * 1000000);
     console.log(`Uploading dataset`);
-    await Bluebird.map(dataStreams, (stream, index) =>
-      fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${index}`, () => {
+    for (let index = 0; index < dataStreams.length; index++) {
+      await fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${index}`, () => {
+        let stream = dataStreams[index];
         // if error occurred during upload (this is invoked a second time)
         if ((<any> stream).usedDataset) {
           // redo everything
@@ -619,7 +620,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         }
         (<any> stream).usedDataset = true;
         return stream;
-      }), { concurrency: 1 });
+      });
+    }
     // start job
     await masterRequest('maple', {
       mapleScriptName,
