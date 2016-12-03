@@ -449,7 +449,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
             // we mistakenly thought that this worker was free
             activeWorkers.add(freeWorker);
           }
-          console.error(err.body ? err.body : err);
+          console.error(err.error ? err.error : err);
           // retry in a while
           Bluebird.delay(500).then(() => taskAvailableEvents.next(waitingTask));
         });
