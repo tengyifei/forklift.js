@@ -200,6 +200,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       });
     // wait for intermediate results to be written to disk
     await Promise.all(writes);
+    let workerDoneTime = Date.now();
     // upload results
     console.log(`Maple: Uploading results`);
     for (let i = 0; i < keys.length; i++) {
@@ -218,7 +219,9 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     // signal master that we're done
 
     let endTime = Date.now();
-    console.log(`Maple: Done in ${(endTime - startTime) / 1000} seconds`);
+    console.log(`Maple: Done in ${
+      (endTime - startTime) / 1000} seconds. Processing time was ${
+      (workerDoneTime - startTime) / 1000} seconds`);
   });
 
   workerApp.post('/juiceTask', (req, res) => {
