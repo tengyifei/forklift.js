@@ -171,7 +171,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     if (!req.body) return res.sendStatus(400);
     let task: Task = req.body;
     if (currentTask) {
-      return res.status(400).send({ error: 'Task ${current.id} in progress' });
+      return res.status(400).send({ error: `Task ${currentTask.id} in progress` });
     }
     if (task.type !== 'mapletask') {
       return res.status(400).set({ error: 'Not a Maple task' });
@@ -398,14 +398,17 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     let assigned = new ReplaySubject<number>();
 
     // scheduling logic
+    let scheduleQueue = new ReactiveQueue<{ type: 'worker', worker: number} | { type: 'task', task: Task }>();
     let subX = Observable.merge(
       workerAvailableEvents.map(w => ({ type: 'worker', worker: w })),
       taskAvailableEvents.map(t => ({ type: 'task', task: t})))
-    .subscribe(wt => {
-      let waitingTask: Task;
+    .subscribe(x => scheduleQueue.push(<any> x));
+
+    scheduleQueue.subscribe(async wt => {
+      let waitingTask: Task = null;
       let freeWorker: number = NaN;
       if (wt.type === 'task') {
-        waitingTask = (<any> wt).task;
+        waitingTask = wt.task;
         // find first available worker
         let members = swim.members().map(x => ipToID(x.host));
         for (let i = 0; i < members.length; i++) {
@@ -415,7 +418,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
           }
         }
       } else {
-        freeWorker = (<any> wt).worker;
+        freeWorker = wt.worker;
         for (let i = 0; i < job.taskIds.length; i++) {
           // find first waiting task
           if (taskPool.has(job.taskIds[i])
@@ -428,12 +431,16 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       // try to schedule
       if (waitingTask && isFinite(freeWorker)) {
         waitingTask.assignedWorker = freeWorker;
-        waitingTask.state = 'progress';
-        activeWorkers.add(freeWorker);
-        workerRequest(
+        await workerRequest(
           waitingTask.type === 'mapletask' ? 'mapleTask' : 'juiceTask',
           waitingTask.assignedWorker,
-          waitingTask).then(_ => assigned.next(0));
+          waitingTask)
+        .then(_ => {
+          waitingTask.state = 'progress';
+          activeWorkers.add(freeWorker);
+          assigned.next(0);
+        })
+        .catch(err => waitingTask.assignedWorker = NaN);
       }
     });
 
@@ -456,6 +463,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
             // reset the task stream
             taskDoneEvents.complete();
             taskDoneEvents = new ReplaySubject<Task>();
+            scheduleQueue.reset();
             workerAvailableEvents = new Subject<number>();
             taskAvailableEvents = new Subject<Task>();
             activeWorkers = new Set<number>();
