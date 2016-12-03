@@ -96,7 +96,7 @@ async function request(
         }
         totalSize += data.length;
       });
-      p.on('error', e => { stream.emit('error', e); result.reject(e); });
+      p.on('error', e => { /* stream.emit('error', e); */ result.reject(e); });
       p.on('end', () => { stream.end(); result.resolve(totalSize); });
       return result.promise;
     } else {
