@@ -101,11 +101,11 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
         lineBatch.push(line);
       }
       if (lineBatch.length > 500) {
-        worker.postMessage({ type: 'line', lines: lineBatch });
+        // worker.postMessage({ type: 'line', lines: lineBatch });
         lineBatch = [];
       }
   })
-  .then(() => worker.postMessage({ type: 'line', lines: lineBatch }))    // post remaining batch
+  .then(() => worker.postMessage({ type: 'line', lines: [] }))    // post remaining batch
   .then(() => Bluebird.delay(50))
   .then(() => worker.postMessage({ type: 'done' }))
   .catch(err => {
