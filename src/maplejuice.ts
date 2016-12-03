@@ -410,7 +410,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         let members = swim.members().map(x => ipToID(x.host));
         for (let i = 0; i < members.length; i++) {
           if (activeWorkers.has(i) === false) {
-            freeWorker = i;
+            freeWorker = members[i];
             break;
           }
         }
