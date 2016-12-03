@@ -1,8 +1,8 @@
 import { fileSystemProtocol } from './filesys';
 import swimFuture from './swim';
-import { ipToID } from './swim';
+import { ipToID, MemberState } from './swim';
 import { paxos, leaderStream } from './paxos';
-import { Observable, ReplaySubject } from 'rxjs/Rx';
+import { Observable, ReplaySubject, Subject } from 'rxjs/Rx';
 import { partitionDataset } from './partition-dataset';
 import { ReactiveQueue } from './producer-consumer';
 import { makeid, BufferingStream } from './utils';
@@ -265,6 +265,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
   let taskPool = new Map<string, Task>();
 
   let taskDoneEvents = new ReplaySubject<Task>();
+  let workerAvailableEvents = new Subject<number>();
+  let taskAvailableEvents = new Subject<Task>();
 
   let ourId = ipToID(swim.whoami());
 
@@ -393,14 +395,48 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     }
     pendingTasks = _.shuffle(pendingTasks);
     let activeWorkers = new Set<number>();
-    // assign tasks to workers
-    let assignedTasks: Task[] = [];
-    for (let i = 0; i < members.length && i < pendingTasks.length; i++) {
-      pendingTasks[i].assignedWorker = members[i];
-      pendingTasks[i].state = 'progress';
-      assignedTasks.push(pendingTasks[i]);
-      activeWorkers.add(members[i]);
-    }
+    let assigned = new ReplaySubject<number>();
+
+    // scheduling logic
+    let subX = Observable.merge(
+      workerAvailableEvents.map(w => ({ type: 'worker', worker: w })),
+      taskAvailableEvents.map(t => ({ type: 'task', task: t})))
+    .subscribe(wt => {
+      let waitingTask: Task;
+      let freeWorker: number = -1;
+      if (wt.type === 'task') {
+        waitingTask = (<any> wt).task;
+        // find first available worker
+        let members = swim.members().map(x => ipToID(x.host));
+        for (let i = 0; i < members.length; i++) {
+          if (activeWorkers.has(i) === false) {
+            freeWorker = i;
+            break;
+          }
+        }
+      } else {
+        freeWorker = (<any> wt).worker;
+        for (let i = 0; i < job.taskIds.length; i++) {
+          // find first waiting task
+          if (taskPool.has(job.taskIds[i])
+            && taskPool.get(job.taskIds[i]).state === 'waiting') {
+              waitingTask = taskPool.get(job.taskIds[i]);
+              break;
+            }
+        }
+      }
+      // try to schedule
+      if (waitingTask && (freeWorker !== -1)) {
+        waitingTask.assignedWorker = freeWorker;
+        waitingTask.state = 'progress';
+        activeWorkers.add(freeWorker);
+        workerRequest(
+          waitingTask.type === 'mapletask' ? 'mapleTask' : 'juiceTask',
+          waitingTask.assignedWorker,
+          waitingTask).then(_ => assigned.next(0));
+      }
+    });
+
     // track task state
     let jobDone = Bluebird.defer();
     let sub = taskDoneEvents
@@ -420,29 +456,16 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
             // reset the task stream
             taskDoneEvents.complete();
             taskDoneEvents = new ReplaySubject<Task>();
+            workerAvailableEvents = new Subject<number>();
+            taskAvailableEvents = new Subject<Task>();
             activeWorkers = new Set<number>();
             sub.unsubscribe();
+            subX.unsubscribe();
           } else {
+            // free this worker
+            activeWorkers.delete(task.assignedWorker);
             // see if we can schedule more tasks
-            let freeWorker = task.assignedWorker;
-            let waitingTask: Task;
-            for (let i = 0; i < job.taskIds.length; i++) {
-              // find first waiting task
-              if (taskPool.has(job.taskIds[i])
-               && taskPool.get(job.taskIds[i]).state === 'waiting') {
-                 waitingTask = taskPool.get(job.taskIds[i]);
-                 break;
-               }
-            }
-            if (waitingTask) {
-              // schedule it
-              waitingTask.assignedWorker = task.assignedWorker;
-              waitingTask.state = 'progress';
-              workerRequest(
-                waitingTask.type === 'mapletask' ? 'mapleTask' : 'juiceTask',
-                waitingTask.assignedWorker,
-                waitingTask);
-            }
+            workerAvailableEvents.next(task.assignedWorker);
           }
         } else {
           console.warn(`Task ${task.id} does not belong to job ${job.id}`);
@@ -451,11 +474,15 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         console.warn(`Unknown task reported: ${task.id}`);
       }
     });
-    // send tasks to start computation
-    await Promise.all(assignedTasks.map(task => workerRequest(
-      task.type === 'mapletask' ? 'mapleTask' : 'juiceTask',
-      task.assignedWorker,
-      task)));
+
+    // wait for initial scheduling
+    pendingTasks.forEach(t => taskAvailableEvents.next(t));
+    members.forEach(id => workerAvailableEvents.next(id));
+    await assigned
+    // wait for numWorker/numTask assignments, whichever is smaller
+    .skip(Math.min(pendingTasks.length, members.length) - 1)
+    .take(1).toPromise();
+
     // start querying worker states
     for (;;) {
       let queryOnce = async () => {
@@ -478,12 +505,13 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
                 },
                 nothing: () => {
                   console.warn(`Worker ${id} is down. Rescheduling.`);
+                  activeWorkers.delete(id);
                   for (let [taskId, task] of taskPool.entries()) {
                     if (task.assignedWorker === id) {
                       task.state == 'waiting';
+                      taskAvailableEvents.next(task);
                     }
                   }
-                  activeWorkers.delete(id);
                 }
               });
             }
@@ -495,12 +523,19 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         jobDone.promise.then(() => true),
         Promise.race([
           queryOnce().then(() => Bluebird.delay(1000)),
-          Bluebird.delay(800)
+          Bluebird.delay(1000)
         ]).then(() => false)
       ]);
       if (done) break;
     }
     console.log(`Job ${job.scriptName} done`);
+  });
+
+  swim.on(Swim.EventType.Change, update => {
+    if (update.state === MemberState.Alive) {
+      // wait for initialization
+      setTimeout(() => workerAvailableEvents.next(ipToID(update.host)), 1500);
+    }
   });
 
   ///
