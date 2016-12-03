@@ -609,17 +609,25 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     let dataStreams = partitionDataset(sourceDirectory, numMaples);
     let datasetPrefix = Math.round(Math.random() * 1000000);
     console.log(`Uploading dataset`);
+    let numConcurrentStreams = 1;
+    let concurrentStreams = [ <[stream.Readable[], number]> [dataStreams, 0]];
     for (let index = 0; index < dataStreams.length; index++) {
       await fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${index}`, () => {
-        let stream = dataStreams[index];
-        // if error occurred during upload (this is invoked a second time)
-        if ((<any> stream).usedDataset) {
-          // redo everything
-          dataStreams = partitionDataset(sourceDirectory, numMaples);
-          return dataStreams[index];
+        // find a suitable stream array, or create a new one
+        for (let x = 0; x < concurrentStreams.length; x++) {
+          if (concurrentStreams[x][1] === index) {
+            concurrentStreams[x][1] += 1;
+            return concurrentStreams[x][0][index];
+          }
+          // not found
+          let newStream = partitionDataset(sourceDirectory, numMaples);
+          // exhaust stream up to index - 1
+          for (let x = 0; x <= index - 1; x++) {
+            newStream[x].on('data', (chunk) => {});
+          }
+          concurrentStreams.push([newStream, index + 1]);
+          return newStream[index];
         }
-        (<any> stream).usedDataset = true;
-        return stream;
       });
     }
     // start job
