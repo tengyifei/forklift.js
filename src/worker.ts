@@ -22,7 +22,7 @@ interface Done {
 }
 interface KVPairs {
   type: 'kvs',
-  kvs: [string, string][];
+  kvs: [string, string[]][];
 }
 interface DoneAck {
   type: 'dack';
@@ -64,8 +64,8 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
           if (!collateKv[key]) collateKv[key] = [];
           collateKv[key].push(value);
         });
-        kvs = [].concat(...Object.keys(collateKv).map(k => collateKv[k].map(v => <[string, string]> [k, v])));
-        postMessage({ type: 'kvs', kvs }, '*');
+        let keyIndexed = [].concat(...Object.keys(collateKv).map(k => [k, collateKv[k]]));
+        postMessage({ type: 'kvs', kvs: keyIndexed }, '*');
       } else {
         postMessage({ type: 'dack' }, '*');
         self.close();
@@ -90,16 +90,23 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       totalBatchesProcessed += 1;
       console.log(`num keys: ${kvFiles.size}`);
       // write worker output to file
-      Promise.all(msg.kvs.map(kv => {
-        let [key, value] = kv;
-        if (kvFiles.has(kv[0]) === false) {
+      Promise.all(msg.kvs.map(async kv => {
+        let [key, values] = kv;
+        if (values.length === 0) return;
+        if (kvFiles.has(key) === false) {
           // create new file
           let output = outputs(key);
           let encodeStream = msgpack.createEncodeStream();
           encodeStream.pipe(output);
           kvFiles.set(key, encodeStream);
         }
-        return Bluebird.promisify((value, cb) => kvFiles.get(key).write(value, () => cb()))(value);
+        let stream = kvFiles.get(key);
+        for (let i = 0; i < values.length - 1; i++) {
+          let value = values[i];
+          await Bluebird.promisify((v, cb) => stream.write(v, () => cb()))(value);
+        }
+        // wait for last element
+        return Bluebird.promisify((v, cb) => stream.write(v, () => cb()))(values[values.length - 1]);
       }))
       .then(_ => {
         // attempt to resume after all writes have been flushed
@@ -140,7 +147,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
     if (line.length !== 0) {
       lineBatch.push(line);
     }
-    if (lineBatch.length > 10) {
+    if (lineBatch.length > 50) {
       totalBatchesRead += 1;
       worker.postMessage({ type: 'line', lines: lineBatch });
       lineBatch = [];
