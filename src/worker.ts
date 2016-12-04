@@ -6,13 +6,13 @@ import * as Bluebird from 'bluebird';
 import * as msgpack from 'msgpack-lite';
 const Worker = require('webworker-threads').Worker;
 
-/*
-var readStream = fs.createReadStream('test.log', { start: 0, end: 10000 });
-lineReader.eachLine(readStream, function(line) {});
-*/
-
 type MapleFunction = (line: string) => [string, string][];
+type JuiceFunction = (key: string, value: string) => [string, string][];
 
+interface NewKV {
+  type: 'kv',
+  kv: [string, string];
+}
 interface NewLine {
   type: 'line';
   lines: string[];
@@ -27,11 +27,12 @@ interface KVPairs {
 interface DoneAck {
   type: 'dack';
 }
-type MasterMessage = NewLine | Done;
+type MasterMessage = NewLine | Done | NewKV;
 type WorkerMessage = KVPairs | DoneAck;
 
 // mapper function which gets loaded by worker
 declare var mapper: MapleFunction;
+declare var reducer: JuiceFunction;
 
 /**
  * Output of maple function is an array of keys, and a set of [streams of values in array form]
@@ -172,4 +173,125 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
 /**
  * Output of juice function is plaintext in {key: value} format, separated by line
  */
+export async function juice(juiceScript: string, keys: string[], inputStreamer: (k: string) => stream.Readable, destinationStream: stream.Writable) {
 
+  // evaluate mapleExe and get the maple function
+  let worker = new Worker(function() {
+    let totalLines = 0;
+    let watermark = 10000;
+    function run(msg: MasterMessage) {
+      if (msg.type === 'line') {
+        // process this batch
+        totalLines += msg.lines.length;
+        if (totalLines > watermark) {
+          console.log(`Past ${watermark} lines`);
+          watermark += 10000;
+        }
+        let kvs = (<[string, string][]>[]).concat(...msg.lines.map(mapper));
+        let collateKv: { [x: string]: string[] } = {};
+        kvs.forEach(kv => {
+          let [key, value] = kv;
+          // ignore empty keys
+          if (key === '') return;
+          // ignore keys that are too long
+          if (key.length > 500) return;
+          if (!collateKv[key]) collateKv[key] = [];
+          collateKv[key].push(value);
+        });
+        let keyIndexed = [].concat(Object.keys(collateKv).map(k => [k, collateKv[k]]));
+        postMessage({ type: 'kvs', kvs: keyIndexed }, '*');
+      } else {
+        postMessage({ type: 'dack' }, '*');
+        self.close();
+      }
+    }
+    // computation starter
+    this.onmessage = event => run(event.data);
+  });
+
+  // inject juice program
+  worker.thread.eval(juiceScript);
+
+  function processSingleKey(data: stream.Readable) {
+    let handle = Bluebird.defer<void>();
+
+    let totalBatchesProcessed = 0;
+    let totalBatchesRead = 0;
+    let backlogCallbacks = [];
+    let dataStream;
+
+    worker.onmessage = event => {
+      let msg: WorkerMessage = event.data;
+      if (msg.type === 'dack') {
+        // worker has terminated
+        destinationStream.end();
+        handle.resolve();
+      } else {
+        totalBatchesProcessed += 1;
+        // write worker output to file
+        Promise.all(msg.kvs.map(async kv => {
+          let [key, values] = kv;
+          if (values.length === 0) return;
+          return Bluebird.promisify((v, cb) => destinationStream.write(v, () => cb()))(
+            JSON.stringify({ key, values }) + '\n');
+        }))
+        .then(_ => {
+          // attempt to resume after all writes have been flushed
+          if (totalBatchesRead - totalBatchesProcessed < 1) {
+            // resume data stream
+            backlogCallbacks.forEach(cb => cb());
+            backlogCallbacks = [];
+            data.resume();
+          }
+        });
+      }
+    }
+
+    let lineBatch = [];
+    let watermark = 10000;
+    let totalLines = 0;
+
+    // start the computation
+    let dataRead = Bluebird.defer();
+    dataStream = data
+    .pipe(msgpack.createDecodeStream())
+    .pipe(<stream.Writable> <any> es.map((values, cb) => {
+      totalLines += 1;
+      if (totalLines > watermark) {
+        console.log(`Read ${watermark} lines`); 
+        watermark += 10000;
+      }
+      if (totalBatchesRead - totalBatchesProcessed >= 2) {
+        // pause reading
+        backlogCallbacks.push(cb);
+        data.pause();
+      } else {
+        cb();
+      }
+      if (values.length !== 0) {
+        lineBatch.push(values);
+      }
+      if (lineBatch.length > 10) {
+        totalBatchesRead += 1;
+        worker.postMessage({ type: 'line', lines: lineBatch });
+        lineBatch = [];
+      }
+    }));
+    dataStream.on('end', () => dataRead.resolve());
+    dataStream.on('error', err => dataRead.reject(err));
+
+    dataRead.promise
+    .then(() => worker.postMessage({ type: 'line', lines: lineBatch }))    // post remaining batch
+    .then(() => Bluebird.delay(50))
+    .then(() => worker.postMessage({ type: 'done' }))
+    .catch(err => {
+      worker.terminate();
+      handle.reject(err);
+      destinationStream.end();
+    });
+
+    return handle.promise;
+  }
+
+  await Bluebird.map(keys, key => processSingleKey(inputStreamer(key)));
+}

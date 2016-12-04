@@ -241,11 +241,79 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     currentTask = null;
   });
 
-  workerApp.post('/juiceTask', (req, res) => {
+  workerApp.post('/juiceTask', async (req, res) => {
     if (!req.body) return res.sendStatus(400);
+    let task: Task = req.body;
     if (currentTask) {
       return res.status(403).send({ error: 'Task ${current.id} in progress' });
     }
+    if (task.type !== 'juicetask') {
+      return res.status(400).send({ error: 'Not a Maple task' });
+    }
+    // start
+    currentTask = task;
+    historicalTasks.set(task.id, task);
+    let startTime = Date.now();
+    res.status(200).send({ result: 'Working' });
+    // download maple script
+    console.log(`Juice: Downloading script ${task.scriptName}`);
+    let mapleScript: string;
+    await fileSystemProtocol.get(task.scriptName, () => {
+      let s = new BufferingStream();
+      s.on('finish', () => { mapleScript = s.result.toString(); });
+      return s;
+    });
+    let writes: Promise<void>[] = [];
+    // download our part of the keys
+    let keySet = task.inputKeys;
+    console.log(`Juice: Downloading keys`);
+    await Bluebird.map(
+      keySet,
+      key => fileSystemProtocol.get(key, () => fs.createWriteStream(`${intermediateLocation}/${sanitizeForFile(key)}`)),
+      { concurrency: 3 });
+    // start juice worker
+    console.log(`Juice: Processing`);
+    let keys = await runMaple(
+      mapleScript,
+      fs.createReadStream(`${intermediateLocation}/${inputFile}`),
+      key => {
+        let s = fs.createWriteStream(`${intermediateLocation}/${sanitizeForFile(key)}`);
+        writes.push(streamToPromise(s));
+        return s;
+      });
+    // wait for intermediate results to be written to disk
+    await Promise.all(writes);
+    let workerDoneTime = Date.now();
+    // upload results
+    console.log(`Maple: Uploading results`);
+    for (let i = 0; i < keys.length; i++) {
+      // get lock from master
+      await masterRequest('lock', { key: keys[i] });
+      // perform append
+      await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
+        () => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(keys[i])}`));
+      // release lock from master
+      await masterRequest('unlock', { key: keys[i] });
+    }
+    // append key set
+    await masterRequest('lock', { key: `${task.intermediatePrefix}_KeySet` });
+    // write key set
+    let encodedKeys = msgpack.encode(keys);
+    await fileSystemProtocol.append(`${task.intermediatePrefix}_KeySet`,
+      () => {
+        let s = new stream.Readable();
+        s.push(encodedKeys);
+        s.push(null);
+        return s;
+      });
+    await masterRequest('unlock', { key: `${task.intermediatePrefix}_KeySet` });
+    let endTime = Date.now();
+    console.log(`Maple: Done in ${
+      (endTime - startTime) / 1000} seconds. Processing time was ${
+      (workerDoneTime - startTime) / 1000} seconds`);
+    // signal master that we're done
+    await masterRequest('taskDone', task);
+    currentTask = null;
   });
 
   workerApp.post('/taskStatus', (req, res) => {
