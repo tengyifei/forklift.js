@@ -110,7 +110,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       }))
       .then(_ => {
         // attempt to resume after all writes have been flushed
-        if (totalBatchesRead - totalBatchesProcessed < 5) {
+        if (totalBatchesRead - totalBatchesProcessed < 1) {
           // resume data stream
           backlogCallbacks.forEach(cb => cb());
           backlogCallbacks = [];
@@ -137,7 +137,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       console.log(`Read ${watermark} lines`); 
       watermark += 10000;
     }
-    if (totalBatchesRead - totalBatchesProcessed >= 40) {
+    if (totalBatchesRead - totalBatchesProcessed >= 3) {
       // pause reading
       backlogCallbacks.push(cb);
       data.pause();
