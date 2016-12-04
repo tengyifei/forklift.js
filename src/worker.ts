@@ -42,9 +42,16 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
 
   // evaluate mapleExe and get the maple function
   let worker = new Worker(function() {
+    let totalLines = 0;
+    let watermark = 10000;
     function run(msg: MasterMessage) {
       if (msg.type === 'line') {
         // process this batch
+        totalLines += msg.lines.length;
+        if (totalLines > watermark) {
+          console.log(`Past ${watermark} lines`);
+          watermark += 10000;
+        }
         let kvs = (<[string, string][]>[]).concat(...msg.lines.map(mapper));
         let collateKv: { [x: string]: string[] } = {};
         kvs.forEach(kv => {
@@ -93,10 +100,17 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
   worker.thread.eval(mapleScript);
 
   let lineBatch = [];
+  let watermark = 10000;
+  let totalLines = 0;
 
   // start the computation
   (<(x: stream.Readable, y: (z: string) => void) => Promise<void>> <any>
     Bluebird.promisify(lineReader.eachLine))(data, line => {
+      totalLines += 1;
+      if (totalLines > watermark) {
+        console.log(`Read ${watermark} lines`);
+        watermark += 10000;
+      }
       if (line.length !== 0) {
         lineBatch.push(line);
       }
