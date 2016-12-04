@@ -103,7 +103,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       if (totalBatchesRead - totalBatchesProcessed < 5) {
         backlogCallbacks.forEach(cb => cb());
         backlogCallbacks = [];
-        dataStream.resume();
+        data.resume();
         console.log('resume');
       }
     }
@@ -129,8 +129,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
     if (totalBatchesRead - totalBatchesProcessed >= 40) {
       // stop reading
       backlogCallbacks.push(cb);
-      dataStream.pause();
-      console.log('pause');
+      data.pause();
     } else {
       cb();
     }
