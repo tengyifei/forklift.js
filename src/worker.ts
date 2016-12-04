@@ -78,6 +78,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
   let totalBatchesProcessed = 0;
   let totalBatchesRead = 0;
   let backlogCallbacks = [];
+  let dataStream;
 
   worker.onmessage = event => {
     let msg: WorkerMessage = event.data;
@@ -102,6 +103,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       if (totalBatchesRead - totalBatchesProcessed < 80) {
         backlogCallbacks.forEach(cb => cb());
         backlogCallbacks = [];
+        dataStream.resume();
       }
     }
   }
@@ -115,7 +117,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
 
   // start the computation
   let dataRead = Bluebird.defer();
-  let dataStream = data
+  dataStream = data
   .pipe((<any> es.split)())
   .pipe(es.map((line, cb) => {
     totalLines += 1;
@@ -134,6 +136,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
     if (totalBatchesRead - totalBatchesProcessed >= 80) {
       // stop reading
       backlogCallbacks.push(cb);
+      dataStream.pause();
     } else {
       cb();
     }
