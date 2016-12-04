@@ -100,10 +100,11 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
         }
         kvFiles.get(key).write(value);
       });
-      if (totalBatchesRead - totalBatchesProcessed < 80) {
+      if (totalBatchesRead - totalBatchesProcessed < 10) {
         backlogCallbacks.forEach(cb => cb());
         backlogCallbacks = [];
         dataStream.resume();
+        console.log('resume');
       }
     }
   }
@@ -137,6 +138,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       // stop reading
       backlogCallbacks.push(cb);
       dataStream.pause();
+      console.log('pause');
     } else {
       cb();
     }
