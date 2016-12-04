@@ -100,7 +100,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
         }
         kvFiles.get(key).write(value);
       });
-      if (totalBatchesRead - totalBatchesProcessed < 10) {
+      if (totalBatchesRead - totalBatchesProcessed < 5) {
         backlogCallbacks.forEach(cb => cb());
         backlogCallbacks = [];
         dataStream.resume();
@@ -119,12 +119,20 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
   // start the computation
   let dataRead = Bluebird.defer();
   dataStream = data
-  .pipe((<any> es.split)())
+  .pipe(<any> es.split('\n'))
   .pipe(es.map((line, cb) => {
     totalLines += 1;
     if (totalLines > watermark) {
       console.log(`Read ${watermark} lines`);
       watermark += 10000;
+    }
+    if (totalBatchesRead - totalBatchesProcessed >= 40) {
+      // stop reading
+      backlogCallbacks.push(cb);
+      dataStream.pause();
+      console.log('pause');
+    } else {
+      cb();
     }
     if (line.length !== 0) {
       lineBatch.push(line);
@@ -133,14 +141,6 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       totalBatchesRead += 1;
       worker.postMessage({ type: 'line', lines: lineBatch });
       lineBatch = [];
-    }
-    if (totalBatchesRead - totalBatchesProcessed >= 80) {
-      // stop reading
-      backlogCallbacks.push(cb);
-      dataStream.pause();
-      console.log('pause');
-    } else {
-      cb();
     }
   }));
   dataStream.on('end', () => dataRead.resolve());
