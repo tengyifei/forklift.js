@@ -89,7 +89,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
     } else {
       totalBatchesProcessed += 1;
       // write worker output to file
-      msg.kvs.forEach(kv => {
+      Promise.all(msg.kvs.map(kv => {
         let [key, value] = kv;
         if (kvFiles.has(kv[0]) === false) {
           // create new file
@@ -98,14 +98,17 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
           encodeStream.pipe(output);
           kvFiles.set(key, encodeStream);
         }
-        kvFiles.get(key).write(value);
+        return Bluebird.promisify((value, cb) => kvFiles.get(key).write(value, cb))(value);
+      }))
+      .then(_ => {
+        // attempt to resume after all writes have been flushed
+        if (totalBatchesRead - totalBatchesProcessed < 5) {
+          // resume data stream
+          backlogCallbacks.forEach(cb => cb());
+          backlogCallbacks = [];
+          data.resume();
+        }
       });
-      if (totalBatchesRead - totalBatchesProcessed < 5) {
-        backlogCallbacks.forEach(cb => cb());
-        backlogCallbacks = [];
-        data.resume();
-        console.log('resume');
-      }
     }
   }
 
@@ -123,11 +126,11 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
   .pipe(es.map((line, cb) => {
     totalLines += 1;
     if (totalLines > watermark) {
-      console.log(`Read ${watermark} lines`);
+      console.log(`Read ${watermark} lines`); 
       watermark += 10000;
     }
     if (totalBatchesRead - totalBatchesProcessed >= 40) {
-      // stop reading
+      // pause reading
       backlogCallbacks.push(cb);
       data.pause();
     } else {
