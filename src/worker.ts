@@ -1,6 +1,7 @@
 import * as lineReader from 'line-reader';
 import * as stream from 'stream';
 import * as fs from 'fs';
+import * as es from 'event-stream';
 import * as Bluebird from 'bluebird';
 import * as msgpack from 'msgpack-lite';
 const Worker = require('webworker-threads').Worker;
@@ -74,6 +75,10 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
     this.onmessage = event => run(event.data);
   });
 
+  let totalBatchesProcessed = 0;
+  let totalBatchesRead = 0;
+  let backlogCallbacks = [];
+
   worker.onmessage = event => {
     let msg: WorkerMessage = event.data;
     if (msg.type === 'dack') {
@@ -81,6 +86,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       kvFiles.forEach(stream => stream.end());
       handle.resolve(Array.from(kvFiles.keys()));
     } else {
+      totalBatchesProcessed += 1;
       // write worker output to file
       msg.kvs.forEach(kv => {
         let [key, value] = kv;
@@ -93,6 +99,10 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
         }
         kvFiles.get(key).write(value);
       });
+      if (totalBatchesRead - totalBatchesProcessed < 80) {
+        backlogCallbacks.forEach(cb => cb());
+        backlogCallbacks = [];
+      }
     }
   }
 
@@ -104,21 +114,34 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
   let totalLines = 0;
 
   // start the computation
-  (<(x: stream.Readable, y: (z: string) => void) => Promise<void>> <any>
-    Bluebird.promisify(lineReader.eachLine))(data, line => {
-      totalLines += 1;
-      if (totalLines > watermark) {
-        console.log(`Read ${watermark} lines`);
-        watermark += 10000;
-      }
-      if (line.length !== 0) {
-        lineBatch.push(line);
-      }
-      if (lineBatch.length > 500) {
-        worker.postMessage({ type: 'line', lines: lineBatch });
-        lineBatch = [];
-      }
-  })
+  let dataRead = Bluebird.defer();
+  let dataStream = data
+  .pipe((<any> es.split)())
+  .pipe(es.map((line, cb) => {
+    totalLines += 1;
+    if (totalLines > watermark) {
+      console.log(`Read ${watermark} lines`);
+      watermark += 10000;
+    }
+    if (line.length !== 0) {
+      lineBatch.push(line);
+    }
+    if (lineBatch.length > 500) {
+      totalBatchesRead += 1;
+      worker.postMessage({ type: 'line', lines: lineBatch });
+      lineBatch = [];
+    }
+    if (totalBatchesRead - totalBatchesProcessed >= 80) {
+      // stop reading
+      backlogCallbacks.push(cb);
+    } else {
+      cb();
+    }
+  }));
+  dataStream.on('end', () => dataRead.resolve());
+  dataStream.on('error', err => dataRead.reject(err));
+
+  dataRead.promise
   .then(() => worker.postMessage({ type: 'line', lines: lineBatch }))    // post remaining batch
   .then(() => Bluebird.delay(50))
   .then(() => worker.postMessage({ type: 'done' }))

@@ -4,6 +4,7 @@
     "body-parser": "registry:dt/body-parser#0.0.0+20160619023215",
     "chai": "registry:dt/chai#3.4.0+20160601211834",
     "decimal.js": "registry:dt/decimal.js#0.0.0+20160317120654",
+    "event-stream": "registry:dt/event-stream#0.0.0+20160216030252",
     "express": "registry:dt/express#4.0.0+20160708185218",
     "express-serve-static-core": "registry:dt/express-serve-static-core#4.0.0+20161012061536",
     "form-data": "registry:dt/form-data#0.0.0+20160724024111",
