@@ -5,7 +5,7 @@ import { paxos, leaderStream } from './paxos';
 import { Observable, ReplaySubject, Subject } from 'rxjs/Rx';
 import { partitionDataset } from './partition-dataset';
 import { ReactiveQueue } from './producer-consumer';
-import { makeid, BufferingStream } from './utils';
+import { makeid, BufferingStream, hashString } from './utils';
 import { maple as runMaple } from './worker';
 import Semaphore from './semaphore';
 import { Maybe } from './maybe';
@@ -86,6 +86,7 @@ interface MapleTask extends TaskBase {
 
 interface JuiceTask extends TaskBase {
   type: 'juicetask';
+  intermediatePrefix: string;
   inputKeys: string[];
 }
 
@@ -317,8 +318,71 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     res.sendStatus(200);
   });
 
-  masterApp.post('/juice', (req, res) => {
+  masterApp.post('/juice', async (req, res) => {
     if (!req.body) return res.sendStatus(400);
+    let {
+      juiceScriptName,
+      numJuices,
+      intermediatePrefix,
+      destFilename,
+      deleteInput,
+      partitionAlgorithm
+    } = req.body;
+    // download key set
+    let keySetName = `${intermediatePrefix}_KeySet`;
+    console.log(`Downloading key set ${keySetName}`);
+    // split keys into numJuices parts
+    let receiveKeySet: BufferingStream;
+    await fileSystemProtocol.get(keySetName, () => receiveKeySet = new BufferingStream());
+    let keySet: string[] = msgpack.decode(receiveKeySet.result);
+    let partitionKeySet: string[][] = [];
+    for (let i = 0; i < numJuices; i++) {
+      partitionKeySet.push([]);
+    }
+    if (partitionAlgorithm === 'range') {
+      keySet = keySet.sort();
+      let numKeys = keySet.length;
+      let numPerPartition = Math.ceil(numKeys / numJuices);
+      for (let i = 0; i < numJuices; i++) {
+        for (let j = 0; j < numPerPartition; j++) {
+          let index = i * numPerPartition + j;
+          if (index >= numKeys) break;
+          partitionKeySet[i].push(keySet[index]);
+        }
+      }
+    } else if (partitionAlgorithm === 'hash') {
+      keySet.forEach(key => partitionKeySet[hashString(key) % numJuices].push(key));
+    } else {
+      console.warn(`Bad partition algorithm ${partitionAlgorithm}`);
+      res.sendStatus(400);
+      return;
+    }
+    // create a new job
+    let job: JuiceJob = {
+      type: 'juice',
+      id: makeid(),
+      taskIds: [],
+      numTaskDone: 0,
+      numWorkers: numJuices,
+      scriptName: juiceScriptName
+    };
+    // generate tasks
+    for (let i = 0; i < numJuices; i++) {
+      let task: JuiceTask = {
+        type: 'juicetask',
+        id: makeid(),
+        intermediatePrefix: intermediatePrefix,
+        scriptName: juiceScriptName,
+        jobId: job.id,
+        inputKeys: partitionKeySet[i],
+        state: 'waiting'
+      };
+      job.taskIds.push(task.id);
+      taskPool.set(task.id, task);
+    }
+    commandQueue.push(job);
+
+    res.sendStatus(200);
   });
 
   masterApp.post('/taskDone', (req, res) => {
@@ -649,6 +713,20 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     partitionAlgorithm: 'hash' | 'range')
   {
     let leader = await withLeader();
+    // upload juice script
+    let juiceScriptName = path.basename(juiceExe, '.js');
+    console.log(`Uploading Juice script ${juiceScriptName}`);
+    await fileSystemProtocol.put(juiceScriptName, () => fs.createReadStream(juiceExe));
+    // start job
+    await masterRequest('juice', {
+      juiceScriptName,
+      numJuices,
+      intermediatePrefix,
+      destFilename,
+      deleteInput,
+      partitionAlgorithm
+    });
+    console.log(`Juice job ${juiceScriptName} sent`);
   }
 
   // start master program if we are the leader
