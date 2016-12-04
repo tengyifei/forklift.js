@@ -64,7 +64,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
           if (!collateKv[key]) collateKv[key] = [];
           collateKv[key].push(value);
         });
-        let keyIndexed = [].concat(...Object.keys(collateKv).map(k => [k, collateKv[k]]));
+        let keyIndexed = [].concat(Object.keys(collateKv).map(k => [k, collateKv[k]]));
         postMessage({ type: 'kvs', kvs: keyIndexed }, '*');
       } else {
         postMessage({ type: 'dack' }, '*');
@@ -103,7 +103,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
         let stream = kvFiles.get(key);
         for (let i = 0; i < values.length - 1; i++) {
           let value = values[i];
-          await Bluebird.promisify((v, cb) => stream.write(v, () => cb()))(value);
+          stream.write(value);
         }
         // wait for last element
         return Bluebird.promisify((v, cb) => stream.write(v, () => cb()))(values[values.length - 1]);

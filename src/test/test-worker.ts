@@ -12,7 +12,7 @@ const expect = chai.expect;
 // module to be tested
 import { maple } from '../worker';
 
-describe('Worker', function () {
+describe.only('Worker', function () {
   it('handles maple', async function () {
     let testData =
 `apple bla apple
@@ -77,7 +77,7 @@ function mapper(line) {
 
       expect(expectedAfterReduce[k]).to.be.greaterThan(0);
       expect(values.length).to.be.greaterThan(0);
-      values.forEach(value => expect(value).to.be.eq(1));
+      values.forEach(value => expect(value).to.be.eq(1, 'each item should be one'));
       expect(expectedAfterReduce[k]).to.be.eq(values.length);
     }));
   });
