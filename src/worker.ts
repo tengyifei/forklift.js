@@ -88,6 +88,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       handle.resolve(Array.from(kvFiles.keys()));
     } else {
       totalBatchesProcessed += 1;
+      console.log(`num keys: ${kvFiles.size}`);
       // write worker output to file
       Promise.all(msg.kvs.map(kv => {
         let [key, value] = kv;
@@ -98,7 +99,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
           encodeStream.pipe(output);
           kvFiles.set(key, encodeStream);
         }
-        return Bluebird.promisify((value, cb) => kvFiles.get(key).write(value, cb))(value);
+        return Bluebird.promisify((value, cb) => kvFiles.get(key).write(value, () => cb()))(value);
       }))
       .then(_ => {
         // attempt to resume after all writes have been flushed
