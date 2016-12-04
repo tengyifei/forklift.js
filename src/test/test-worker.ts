@@ -12,20 +12,31 @@ const expect = chai.expect;
 // module to be tested
 import { maple } from '../worker';
 
-describe.only('Worker', function () {
+describe('Worker', function () {
   it('handles maple', async function () {
     let testData =
 `apple bla apple
 apple
-pinapple
+pinapple pinapple pinapple pinapple pinapple pinapple pinapple
 pen
-pen`;
+pen
+apple pinapple pinapple pinapple pinapple pinapple pinapple
+apple
+pen
+pen
+apple
+apple pinapple pinapple pinapple pinapple pinapple pinapple
+pen
+pen pinapple pinapple pinapple pinapple pinapple pinapple
+apple pinapple pinapple pinapple pinapple pinapple pinapple
+apple
+bla`;
     let expectedKeysAfterMaple = { apple: true, bla: true, pinapple: true, pen: true };
     let expectedAfterReduce = {
-      apple: 3,
-      bla: 1,
-      pinapple: 1,
-      pen: 2
+      apple: 9,
+      bla: 2,
+      pinapple: 31,
+      pen: 6
     };
     let script =
 `

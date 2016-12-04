@@ -137,7 +137,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
       console.log(`Read ${watermark} lines`); 
       watermark += 10000;
     }
-    if (totalBatchesRead - totalBatchesProcessed >= 3) {
+    if (totalBatchesRead - totalBatchesProcessed >= 2) {
       // pause reading
       backlogCallbacks.push(cb);
       data.pause();
@@ -147,7 +147,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
     if (line.length !== 0) {
       lineBatch.push(line);
     }
-    if (lineBatch.length > 50) {
+    if (lineBatch.length > 10) {
       totalBatchesRead += 1;
       worker.postMessage({ type: 'line', lines: lineBatch });
       lineBatch = [];
