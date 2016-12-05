@@ -276,7 +276,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
           JSON.stringify({ key: msg.key, value: msg.value }) + '\n')
         .then(_ => {
           // attempt to resume after all writes have been flushed
-          if (totalValues - totalValuesProcessed < 100) {
+          if (totalValues - totalValuesProcessed < 200) {
             // resume data stream
             backlogCallbacks.forEach(cb => cb());
             backlogCallbacks = [];
@@ -286,7 +286,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
       } else if (msg.type === 'ackbatch') {
         totalValues += msg.num;
         // attempt to resume after all writes have been flushed
-        if (totalValues - totalValuesProcessed < 100) {
+        if (totalValues - totalValuesProcessed < 200) {
           // resume data stream
           backlogCallbacks.forEach(cb => cb());
           backlogCallbacks = [];

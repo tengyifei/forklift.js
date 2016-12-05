@@ -67,13 +67,14 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
     let cb = idx => () => {
       if (idx < filestats.length - 1) {
         // push next file
-        console.log(`reading: ${filestats[idx + 1][0]}`);
-        fileStream.push(fs.createReadStream(filestats[idx + 1][0]));
-        fileStream[idx + 1].on('end', cb(idx + 1));
+        let nextIdx = idx + 1;
+        console.log(`reading: ${filestats[nextIdx][0]}`);
+        fileStream.push(fs.createReadStream(filestats[nextIdx][0]));
+        fileStream[nextIdx].on('end', cb(nextIdx));
         // separate files with newline
         masterStream.write(new Buffer('\n'), () =>
           // pipe next file
-          fileStream[idx + 1].pipe(masterStream, { end: idx + 1 === filestats.length - 1 }));
+          fileStream[nextIdx].pipe(masterStream, { end: nextIdx === filestats.length - 1 }));
       }
     };
     fileStream[0].on('end', cb(0));

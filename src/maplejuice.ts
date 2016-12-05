@@ -269,7 +269,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       s.on('finish', () => { juiceScript = s.result.toString(); });
       return s;
     });
-    let writes: Promise<void>[] = [];
     // download our part of the keys
     let keySet = task.inputKeys;
     console.log(`Juice: Downloading keys`);
@@ -284,8 +283,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       task.inputKeys,
       key => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(key)}`),
       fs.createWriteStream(`${intermediateLocation}/ReducerOutput_${task.scriptName}`));
-    // wait for intermediate results to be written to disk
-    await Promise.all(writes);
     let workerDoneTime = Date.now();
     // upload results
     console.log(`Juice: Uploading results`);
