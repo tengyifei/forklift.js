@@ -223,6 +223,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     let theKey;
     let valuesReadNoAck = 0;
     function run(msg: MasterMessage) {
+      console.log(msg);
       if (msg.type === 'setkey') {
         // initialize everything
         theKey = msg.key;
