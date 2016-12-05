@@ -125,6 +125,8 @@ function sanitizeForFile(name: string): string {
       else
         str = '000' + charCode;
       return '$' + str;
+    } else {
+      return x;
     }
   }).join('');
   return name;
