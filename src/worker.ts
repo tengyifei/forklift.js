@@ -280,7 +280,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
             // resume data stream
             backlogCallbacks.forEach(cb => cb());
             backlogCallbacks = [];
-            console.log('pause');
+            console.log('resume');
             // data.resume();
           }
         });
@@ -315,6 +315,11 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
         console.log(`Read ${watermark} values`);
         watermark += 10000;
       }
+      valueBatch.push(value);
+      if (valueBatch.length >= 100) {
+        worker.postMessage({ type: 'values', values: valueBatch });
+        valueBatch = [];
+      }
       if (totalValues - totalValuesProcessed >= 600) {
         // pause reading
         backlogCallbacks.push(cb);
@@ -322,11 +327,6 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
         // data.pause();
       } else {
         cb();
-      }
-      valueBatch.push(value);
-      if (valueBatch.length >= 100) {
-        worker.postMessage({ type: 'values', values: valueBatch });
-        valueBatch = [];
       }
     }))
     .on('data', () => {});
@@ -348,7 +348,11 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     });
   }
 
-  await Bluebird.map(keys, key => processSingleKey(key, inputStreamer(key)), { concurrency: 1 });
+  for (let i = 0; i < keys.length; i++) {
+    console.log(`Key: ${keys[i]}`);
+    let key = keys[i];
+    await processSingleKey(key, inputStreamer(key));
+  }
   await Bluebird.delay(50);
   worker.terminate();
   destinationStream.end();
