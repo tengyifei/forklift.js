@@ -7,7 +7,7 @@ import * as msgpack from 'msgpack-lite';
 const Worker = require('webworker-threads').Worker;
 import * as through2 from 'through2';
 
-type MapleFunction = (line: string) => [string, string][];
+type MapleFunction = (line: string) => [string, any][];
 type EmitterFunction = (key: string, value: any) => void;
 interface MyObservable {
   subscribe: (fn: (value: string) => void) => Promise<void>;
@@ -17,7 +17,7 @@ type JuiceFunction = (key: string, values: MyObservable, emit: EmitterFunction) 
 // main -> worker
 interface NewKV {
   type: 'kv',
-  kv: [string, string][];
+  kv: [string, any][];
 }
 interface NewLine {
   type: 'line';
@@ -32,18 +32,18 @@ interface SetKey {
 }
 interface Values {
   type: 'values',
-  values: string[];
+  values: any[];
 }
 
 // worker -> main
 interface KVPairs {
   type: 'kvs',
-  kvs: [string, string[]][];
+  kvs: [string, any[]][];
 }
 interface SingleKV {
   type: 'kv',
   key: string;
-  value: string;
+  value: any;
 }
 interface AckBatch {
   type: 'ackbatch';
@@ -81,7 +81,7 @@ export function maple(mapleScript: string, data: stream.Readable, outputs: (key:
           watermark += 10000;
         }
         let kvs = (<[string, string][]>[]).concat(...msg.lines.map(mapper));
-        let collateKv: { [x: string]: string[] } = {};
+        let collateKv: { [x: string]: any[] } = {};
         kvs.forEach(kv => {
           let [key, value] = kv;
           // ignore empty keys
@@ -210,7 +210,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     /**
      * This function is called when a new value is to be sent to output.
      */
-    function emit(key: string, value: any) {
+    function emitter(key: string, value: any) {
       postMessage(<SingleKV> { type: 'kv', key, value }, '*');
     }
     let subscribers: ((v: any) => void)[] = [];
@@ -224,8 +224,15 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     let valuesReadNoAck = 0;
     function run(msg: MasterMessage) {
       if (msg.type === 'setkey') {
+        // initialize everything
         theKey = msg.key;
-        reducerEnd = reducer(theKey, values, emit);
+        valuesReadNoAck = 0;
+        subscribers = [];
+        reducerEnd = reducer(theKey, values, emitter);
+        endPromise = new Promise((res, rej) => {
+          resolver = res;
+          rejector = rej;
+        });
       } else if (msg.type === 'values') {
         valuesReadNoAck += msg.values.length;
         // ack values in batches
@@ -239,10 +246,9 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
         // kick-start end phase of reducer
         resolver();
         // wait for all values to be emitted
-        reducerEnd.then(() => {
-          postMessage({ type: 'dack' }, '*');
-          self.close();
-        });
+        reducerEnd.then(() => postMessage({ type: 'dack' }, '*'));
+      } else {
+        console.warn(`Unknown message`, msg);
       }
     }
     this.onmessage = event => run(event.data);
@@ -250,21 +256,20 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
 
   // inject juice program
   worker.thread.eval(juiceScript);
+  let handles = {};
+  keys.forEach(k => handles[k] = Bluebird.defer<void>());
 
   function processSingleKey(key: string, data: NodeJS.ReadableStream) {
-    let handle = Bluebird.defer<void>();
-
     let totalValuesProcessed = 0;
     let totalValues = 0;
     let backlogCallbacks = [];
-    let dataStream;
+    let dataStream: NodeJS.ReadWriteStream;
 
     worker.onmessage = event => {
       let msg: WorkerMessage = event.data;
       if (msg.type === 'dack') {
-        // worker has terminated
-        destinationStream.end();
-        handle.resolve();
+        // worker is done with current key
+        handles[key].resolve();
       } else if (msg.type === 'kv') {
         // write worker output to file
         Bluebird.promisify((v, cb) => destinationStream.write(v, () => cb()))(
@@ -287,6 +292,8 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
           backlogCallbacks = [];
           data.resume();
         }
+      } else {
+        console.warn(`Unknown message`, msg);
       }
     }
 
@@ -308,6 +315,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
       if (totalValues - totalValuesProcessed >= 500) {
         // pause reading
         backlogCallbacks.push(cb);
+        data.pause();
       } else {
         cb();
       }
@@ -316,22 +324,22 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
         worker.postMessage({ type: 'values', values: valueBatch });
         valueBatch = [];
       }
-    }));
+    }))
+    .on('data', () => {});
     dataStream.on('end', () => dataRead.resolve());
     dataStream.on('error', err => dataRead.reject(err));
 
-    dataRead.promise
-    .then(() => worker.postMessage({ type: 'values', lines: valueBatch }))    // post remaining batch
-    .then(() => Bluebird.delay(50))
+    return dataRead.promise
+    .then(() => worker.postMessage({ type: 'values', values: valueBatch }))    // post remaining batch
     .then(() => worker.postMessage({ type: 'done' }))
     .catch(err => {
       worker.terminate();
-      handle.reject(err);
+      handles[key].reject(err);
       destinationStream.end();
-    });
-
-    return handle.promise;
+    }).then(handles[key]);
   }
 
   await Bluebird.map(keys, key => processSingleKey(key, inputStreamer(key)), { concurrency: 1 });
+  worker.terminate();
+  destinationStream.end();
 }
