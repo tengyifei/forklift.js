@@ -284,7 +284,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
           }
         });
       } else if (msg.type === 'ackbatch') {
-        totalValues += msg.num;
+        totalValuesProcessed += msg.num;
         // attempt to resume after all writes have been flushed
         if (totalValues - totalValuesProcessed < 200) {
           // resume data stream
