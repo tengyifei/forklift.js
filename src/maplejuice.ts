@@ -733,6 +733,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     let concurrentStreams = [ <[stream.Readable[], number]> [dataStreams, 0]];
     for (let i = 0; i < dataStreams.length; i++) {
       await fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${i}`, (index => () => {
+        console.log(concurrentStreams, index);
         // find a suitable stream array, or create a new one
         for (let x = 0; x < concurrentStreams.length; x++) {
           if (concurrentStreams[x][1] === index) {
