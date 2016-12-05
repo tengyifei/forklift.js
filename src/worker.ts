@@ -223,7 +223,6 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     let theKey;
     let valuesReadNoAck = 0;
     function run(msg: MasterMessage) {
-      console.log(msg);
       if (msg.type === 'setkey') {
         // initialize everything
         theKey = msg.key;
@@ -323,7 +322,8 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
       }
       if (totalValues - totalValuesProcessed >= 600) {
         // pause reading
-        backlogCallbacks.push(cb);
+        // backlogCallbacks.push(cb);
+        cb();
         console.log('pause');
         // data.pause();
       } else {
