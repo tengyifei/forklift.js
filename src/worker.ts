@@ -280,6 +280,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
             // resume data stream
             backlogCallbacks.forEach(cb => cb());
             backlogCallbacks = [];
+            console.log('pause');
             // data.resume();
           }
         });
@@ -291,6 +292,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
           // resume data stream
           backlogCallbacks.forEach(cb => cb());
           backlogCallbacks = [];
+          console.log('resume');
           // data.resume();
         }
       } else {
@@ -316,6 +318,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
       if (totalValues - totalValuesProcessed >= 600) {
         // pause reading
         backlogCallbacks.push(cb);
+        console.log('pause');
         // data.pause();
       } else {
         cb();
