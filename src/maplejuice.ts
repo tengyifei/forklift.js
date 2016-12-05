@@ -745,6 +745,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         // exhaust stream up to index - 1
         for (let x = 0; x <= index - 1; x++) {
           newStream[x].on('data', (chunk) => {});
+          newStream[x].index = index;
         }
         concurrentStreams.push([newStream, index + 1]);
         return newStream[index];

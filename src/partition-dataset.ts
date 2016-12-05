@@ -103,6 +103,7 @@ export function partitionDataset(dataset: string, numPartition: number): stream.
     _write(chunk: Buffer, encoding: string, callback: Function): void {
       // main partitioning logic
       roughPartition.then(individualSize => {
+        console.log(streams[0].index, this.bytesReceived, this.currParition);
         let stream = streams[this.currParition];
         if (this.currParition === numPartition - 1) {
           // we're at last partition, just send whatever we have
