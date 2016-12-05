@@ -742,7 +742,6 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         }
         // not found
         let newStream = partitionDataset(sourceDirectory, numMaples);
-        newStream[0].index = index;
         // exhaust stream up to index - 1
         for (let x = 0; x <= index - 1; x++) {
           newStream[x].on('data', (chunk) => {});
