@@ -280,7 +280,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
             // resume data stream
             backlogCallbacks.forEach(cb => cb());
             backlogCallbacks = [];
-            data.resume();
+            // data.resume();
           }
         });
       } else if (msg.type === 'ackbatch') {
@@ -291,7 +291,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
           // resume data stream
           backlogCallbacks.forEach(cb => cb());
           backlogCallbacks = [];
-          data.resume();
+          // data.resume();
         }
       } else {
         console.warn(`Unknown message`, msg);
@@ -316,12 +316,12 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
       if (totalValues - totalValuesProcessed >= 600) {
         // pause reading
         backlogCallbacks.push(cb);
-        data.pause();
+        // data.pause();
       } else {
         cb();
       }
       valueBatch.push(value);
-      if (valueBatch.length > 100) {
+      if (valueBatch.length >= 100) {
         worker.postMessage({ type: 'values', values: valueBatch });
         valueBatch = [];
       }
