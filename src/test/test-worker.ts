@@ -7,12 +7,13 @@ import * as chai from 'chai';
 import * as fs from 'fs';
 import * as Stream from 'stream';
 import * as msgpack from 'msgpack-lite';
+import * as through2 from 'through2';
 const expect = chai.expect;
 
 // module to be tested
-import { maple } from '../worker';
+import { maple, juice } from '../worker';
 
-describe('Worker', function () {
+describe.only('Worker', function () {
   it('handles maple', async function () {
     let testData =
 `apple bla apple
@@ -91,5 +92,57 @@ function mapper(line) {
       values.forEach(value => expect(value).to.be.eq(1, 'each item should be one'));
       expect(expectedAfterReduce[k]).to.be.eq(values.length);
     }));
+  });
+
+  it('handles reduce', async function () {
+    let someValue = (size, val) => Array.apply(null, Array(size)).map(Number.prototype.valueOf, val);
+    let reducerInput = {
+      apple: someValue(9, 1),
+      bla: someValue(2, 1),
+      pinapple: someValue(31, 1),
+      pen: someValue(6, 1)
+    };
+
+    class TestStream extends Stream.Writable {
+      public result: Buffer;
+      constructor () {
+        super();
+        this.result = Buffer.from([]);
+      }
+      _write (chunk, enc, next) {
+        this.result = Buffer.concat([this.result, chunk]);
+        next();
+      }
+    }
+
+    let destinationStream = new TestStream();
+
+    let juiceScript = `
+function reducer(key, values, emit) {
+  let sum = 0;
+  return values.subscribe(v => sum += v)
+  .then(() => emit(key, sum));
+}
+`;
+
+    await juice(juiceScript, Object.keys(reducerInput), k => {
+      let inputStream = through2(function (chunk, enc, cb) { this.push(chunk); cb(); });
+      let encode = msgpack.createEncodeStream();
+      encode.pipe(inputStream);
+      reducerInput[k].forEach(v => encode.write(k));
+      encode.end();
+      return inputStream;
+    }, destinationStream);
+
+    expect(destinationStream.result.length).to.be.greaterThan(0);
+    let jsons = destinationStream.result.toString().split('\n');
+    expect(jsons.length).to.be.greaterThan(0);
+    jsons.forEach(json => {
+      let parsed = JSON.parse(json);
+      expect(parsed instanceof Array).to.be.eq(true);
+      let [key, values] = parsed[0];
+      expect(values.length).to.be.eq(1);
+      expect(reducerInput[key].length).to.be.eq(values[0]);
+    });
   });
 });

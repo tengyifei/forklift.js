@@ -18,6 +18,7 @@
     "request": "registry:dt/request#0.0.0+20161116202412",
     "request-promise": "registry:dt/request-promise#4.1.0+20161013074249",
     "rimraf": "registry:dt/rimraf#0.0.0+20160317120654",
-    "serve-static": "registry:dt/serve-static#0.0.0+20160606155157"
+    "serve-static": "registry:dt/serve-static#0.0.0+20160606155157",
+    "through2": "registry:dt/through2#2.0.0+20160926145203"
   }
 }
