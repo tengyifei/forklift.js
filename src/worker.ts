@@ -286,7 +286,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
         });
       } else if (msg.type === 'ackbatch') {
         totalValuesProcessed += msg.num;
-        console.log(totalValues, totalValuesProcessed);
+        // console.log(totalValues, totalValuesProcessed);
         // attempt to resume after all writes have been flushed
         if (totalValues - totalValuesProcessed < 200) {
           // resume data stream
@@ -335,13 +335,9 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     dataStream.on('error', err => dataRead.reject(err));
 
     return dataRead.promise
-    .then(() => console.log(key))
     .then(() => worker.postMessage({ type: 'values', values: valueBatch }))    // post remaining batch
-    .then(() => console.log(key))
     .then(() => worker.postMessage({ type: 'done' }))
-    .then(() => console.log(key))
     .then(() => handles[key].promise)
-    .then(() => console.log(key))
     .catch(err => {
       worker.terminate();
       handles[key].reject(err);
