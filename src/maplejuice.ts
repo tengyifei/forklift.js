@@ -214,13 +214,14 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     // upload results
     console.log(`Maple: Uploading results`);
     for (let i = 0; i < keys.length; i++) {
+      let key = keys[i];
       // get lock from master
-      await masterRequest('lock', { key: keys[i] });
+      await masterRequest('lock', { key });
       // perform append
-      await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
-        () => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(keys[i])}`));
+      await fileSystemProtocol.append(`${task.intermediatePrefix}_${key}`,
+        () => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(key)}`));
       // release lock from master
-      await masterRequest('unlock', { key: keys[i] });
+      await masterRequest('unlock', { key });
     }
     // append key set
     await masterRequest('lock', { key: `${task.intermediatePrefix}_KeySet` });
