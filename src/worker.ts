@@ -228,11 +228,11 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
         theKey = msg.key;
         valuesReadNoAck = 0;
         subscribers = [];
-        reducerEnd = reducer(theKey, values, emitter);
         endPromise = new Promise((res, rej) => {
           resolver = res;
           rejector = rej;
         });
+        reducerEnd = reducer(theKey, values, emitter);
       } else if (msg.type === 'values') {
         valuesReadNoAck += msg.values.length;
         // ack values in batches
@@ -306,7 +306,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     let dataRead = Bluebird.defer();
     dataStream = data
     .pipe(msgpack.createDecodeStream())
-    .pipe(through2((value, enc, cb) => {
+    .pipe(through2.obj((value, enc, cb) => {
       totalValues += 1;
       if (totalValues > watermark) {
         console.log(`Read ${watermark} values`);
@@ -332,14 +332,17 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     return dataRead.promise
     .then(() => worker.postMessage({ type: 'values', values: valueBatch }))    // post remaining batch
     .then(() => worker.postMessage({ type: 'done' }))
+    .then(() => handles[key].promise)
     .catch(err => {
       worker.terminate();
       handles[key].reject(err);
       destinationStream.end();
-    }).then(handles[key]);
+    });
   }
 
-  await Bluebird.map(keys, key => processSingleKey(key, inputStreamer(key)), { concurrency: 1 });
+  await Bluebird.map(keys, key => processSingleKey(key, inputStreamer(key)), { concurrency: 1 })
+  .then(() => Bluebird.delay(50));
   worker.terminate();
   destinationStream.end();
+  await Bluebird.delay(50);
 }

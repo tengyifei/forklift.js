@@ -13,7 +13,7 @@ const expect = chai.expect;
 // module to be tested
 import { maple, juice } from '../worker';
 
-describe.only('Worker', function () {
+describe('Worker', function () {
   it('handles maple', async function () {
     let testData =
 `apple bla apple
@@ -120,6 +120,7 @@ function mapper(line) {
     let juiceScript = `
 function reducer(key, values, emit) {
   let sum = 0;
+  let bla = Math.random();
   return values.subscribe(v => sum += v)
   .then(() => emit(key, sum));
 }
@@ -129,20 +130,18 @@ function reducer(key, values, emit) {
       let inputStream = through2(function (chunk, enc, cb) { this.push(chunk); cb(); });
       let encode = msgpack.createEncodeStream();
       encode.pipe(inputStream);
-      reducerInput[k].forEach(v => encode.write(k));
+      reducerInput[k].forEach(v => encode.write(v));
       encode.end();
       return inputStream;
     }, destinationStream);
 
     expect(destinationStream.result.length).to.be.greaterThan(0);
-    let jsons = destinationStream.result.toString().split('\n');
+    let jsons = destinationStream.result.toString().split('\n').filter(x => x !== '');
     expect(jsons.length).to.be.greaterThan(0);
     jsons.forEach(json => {
       let parsed = JSON.parse(json);
-      expect(parsed instanceof Array).to.be.eq(true);
-      let [key, values] = parsed[0];
-      expect(values.length).to.be.eq(1);
-      expect(reducerInput[key].length).to.be.eq(values[0]);
+      let { key, value } = parsed;
+      expect(reducerInput[key].length).to.be.eq(value);
     });
   });
 });
