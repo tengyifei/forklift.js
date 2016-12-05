@@ -334,13 +334,13 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     dataStream.on('error', err => dataRead.reject(err));
 
     return dataRead.promise
-    .then(() => console.log('a'))
+    .then(() => console.log(key))
     .then(() => worker.postMessage({ type: 'values', values: valueBatch }))    // post remaining batch
-    .then(() => console.log('a'))
+    .then(() => console.log(key))
     .then(() => worker.postMessage({ type: 'done' }))
-    .then(() => console.log('a'))
+    .then(() => console.log(key))
     .then(() => handles[key].promise)
-    .then(() => console.log('a'))
+    .then(() => console.log(key))
     .catch(err => {
       worker.terminate();
       handles[key].reject(err);
@@ -348,8 +348,8 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
     });
   }
 
-  await Bluebird.map(keys, key => processSingleKey(key, inputStreamer(key)), { concurrency: 1 })
-  .then(() => Bluebird.delay(50));
+  await Bluebird.map(keys, key => processSingleKey(key, inputStreamer(key)), { concurrency: 1 });
+  await Bluebird.delay(50);
   worker.terminate();
   destinationStream.end();
   await Bluebird.delay(50);
