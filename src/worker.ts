@@ -285,6 +285,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
         });
       } else if (msg.type === 'ackbatch') {
         totalValuesProcessed += msg.num;
+        console.log(totalValues, totalValuesProcessed);
         // attempt to resume after all writes have been flushed
         if (totalValues - totalValuesProcessed < 200) {
           // resume data stream
@@ -312,7 +313,7 @@ export async function juice(juiceScript: string, keys: string[], inputStreamer: 
         console.log(`Read ${watermark} values`);
         watermark += 10000;
       }
-      if (totalValues - totalValuesProcessed >= 500) {
+      if (totalValues - totalValuesProcessed >= 600) {
         // pause reading
         backlogCallbacks.push(cb);
         data.pause();
