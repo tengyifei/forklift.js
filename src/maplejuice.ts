@@ -6,7 +6,7 @@ import { Observable, ReplaySubject, Subject } from 'rxjs/Rx';
 import { partitionDataset } from './partition-dataset';
 import { ReactiveQueue } from './producer-consumer';
 import { makeid, BufferingStream, hashString } from './utils';
-import { maple as runMaple } from './worker';
+import { maple as runMaple, juice as runJuice } from './worker';
 import Semaphore from './semaphore';
 import { Maybe } from './maybe';
 import * as http from 'http';
@@ -65,6 +65,7 @@ interface JuiceJob {
   numTaskDone: number;
   numWorkers: number;
   scriptName: string;
+  destFilename: string;
 }
 
 type Command = MapleJob | JuiceJob;
@@ -88,6 +89,7 @@ interface JuiceTask extends TaskBase {
   type: 'juicetask';
   intermediatePrefix: string;
   inputKeys: string[];
+  destFilename: string;
 }
 
 type Task = MapleTask | JuiceTask;
@@ -257,10 +259,10 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     res.status(200).send({ result: 'Working' });
     // download maple script
     console.log(`Juice: Downloading script ${task.scriptName}`);
-    let mapleScript: string;
+    let juiceScript: string;
     await fileSystemProtocol.get(task.scriptName, () => {
       let s = new BufferingStream();
-      s.on('finish', () => { mapleScript = s.result.toString(); });
+      s.on('finish', () => { juiceScript = s.result.toString(); });
       return s;
     });
     let writes: Promise<void>[] = [];
@@ -273,42 +275,22 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       { concurrency: 3 });
     // start juice worker
     console.log(`Juice: Processing`);
-    let keys = await runMaple(
-      mapleScript,
-      fs.createReadStream(`${intermediateLocation}/${inputFile}`),
-      key => {
-        let s = fs.createWriteStream(`${intermediateLocation}/${sanitizeForFile(key)}`);
-        writes.push(streamToPromise(s));
-        return s;
-      });
+    let keys = await runJuice(
+      juiceScript,
+      task.inputKeys,
+      key => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(key)}`),
+      fs.createWriteStream(`${intermediateLocation}/ReducerOutput_${task.scriptName}`));
     // wait for intermediate results to be written to disk
     await Promise.all(writes);
     let workerDoneTime = Date.now();
     // upload results
-    console.log(`Maple: Uploading results`);
-    for (let i = 0; i < keys.length; i++) {
-      // get lock from master
-      await masterRequest('lock', { key: keys[i] });
-      // perform append
-      await fileSystemProtocol.append(`${task.intermediatePrefix}_${keys[i]}`,
-        () => fs.createReadStream(`${intermediateLocation}/${sanitizeForFile(keys[i])}`));
-      // release lock from master
-      await masterRequest('unlock', { key: keys[i] });
-    }
-    // append key set
-    await masterRequest('lock', { key: `${task.intermediatePrefix}_KeySet` });
-    // write key set
-    let encodedKeys = msgpack.encode(keys);
-    await fileSystemProtocol.append(`${task.intermediatePrefix}_KeySet`,
-      () => {
-        let s = new stream.Readable();
-        s.push(encodedKeys);
-        s.push(null);
-        return s;
-      });
-    await masterRequest('unlock', { key: `${task.intermediatePrefix}_KeySet` });
+    console.log(`Juice: Uploading results`);
+    await masterRequest('lock', { key: `${task.destFilename}` });
+    await fileSystemProtocol.append(`${task.destFilename}`,
+      () => fs.createReadStream(`${intermediateLocation}/ReducerOutput_${task.scriptName}`));
+    await masterRequest('unlock', { key: `${task.destFilename}` });
     let endTime = Date.now();
-    console.log(`Maple: Done in ${
+    console.log(`Juice: Done in ${
       (endTime - startTime) / 1000} seconds. Processing time was ${
       (workerDoneTime - startTime) / 1000} seconds`);
     // signal master that we're done
@@ -432,7 +414,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
       taskIds: [],
       numTaskDone: 0,
       numWorkers: numJuices,
-      scriptName: juiceScriptName
+      scriptName: juiceScriptName,
+      destFilename: destFilename
     };
     // generate tasks
     for (let i = 0; i < numJuices; i++) {
@@ -441,6 +424,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
         id: makeid(),
         intermediatePrefix: intermediatePrefix,
         scriptName: juiceScriptName,
+        destFilename: destFilename,
         jobId: job.id,
         inputKeys: partitionKeySet[i],
         state: 'waiting'
