@@ -271,7 +271,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     console.log(`Juice: Downloading keys`);
     await Bluebird.map(
       keySet,
-      key => fileSystemProtocol.get(key, () => fs.createWriteStream(`${intermediateLocation}/${sanitizeForFile(key)}`)),
+      key => fileSystemProtocol.get(`${task.intermediatePrefix}_${key}`, () => fs.createWriteStream(`${intermediateLocation}/${sanitizeForFile(key)}`)),
       { concurrency: 3 });
     // start juice worker
     console.log(`Juice: Processing`);
@@ -761,8 +761,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     numJuices: number,
     intermediatePrefix: string,
     destFilename: string,
-    deleteInput: boolean,
-    partitionAlgorithm: 'hash' | 'range')
+    deleteInput: boolean = false,
+    partitionAlgorithm: 'hash' | 'range' = 'hash')
   {
     let leader = await withLeader();
     // upload juice script
