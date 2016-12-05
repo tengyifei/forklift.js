@@ -104,7 +104,7 @@ const MasterPort = 54777;
 const intermediateLocation = 'mp_tmp';
 const InProgressErrorCode = 499;
 
-function sanitizeForFile(name: string) {
+function sanitizeForFile(name: string): string {
   name = encodeURIComponent(name);
   name = name.split('').map(x => {
     if (x === '.'
@@ -127,6 +127,7 @@ function sanitizeForFile(name: string) {
       return '$' + str;
     }
   }).join('');
+  return name;
 }
 
 /**
