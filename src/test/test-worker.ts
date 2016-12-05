@@ -43,6 +43,7 @@ bla`;
 `
 function mapper(line) {
   return line.split(' ')
+  .filter(x => x !== '')
   .map(word => word.replace(/^[^a-z\d]*|[^a-z\d]*$/gi, ''))  // trim symbols
   .map(word => word.toLowerCase())  // to lower case
   .map(word => [word, 1]);  // to key-value pair
@@ -70,7 +71,7 @@ function mapper(line) {
       return output;
     });
 
-    expect(keys.length).to.equal(Object.keys(expectedKeysAfterMaple).length);
+    expect(keys.length).to.equal(Object.keys(expectedKeysAfterMaple).length, 'number of keys');
     keys.forEach(k => expect(expectedKeysAfterMaple[k]).to.be.true);
 
     // verify result
@@ -120,7 +121,6 @@ function mapper(line) {
     let juiceScript = `
 function reducer(key, values, emit) {
   let sum = 0;
-  let bla = Math.random();
   return values.subscribe(v => sum += v)
   .then(() => emit(key, sum));
 }

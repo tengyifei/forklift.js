@@ -731,8 +731,8 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
     console.log(`Uploading dataset`);
     let numConcurrentStreams = 1;
     let concurrentStreams = [ <[stream.Readable[], number]> [dataStreams, 0]];
-    for (let index = 0; index < dataStreams.length; index++) {
-      await fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${index}`, () => {
+    for (let i = 0; i < dataStreams.length; i++) {
+      await fileSystemProtocol.put(`M${datasetPrefix}_${mapleScriptName}_DS${i}`, (index => () => {
         // find a suitable stream array, or create a new one
         for (let x = 0; x < concurrentStreams.length; x++) {
           if (concurrentStreams[x][1] === index) {
@@ -748,7 +748,7 @@ export const maplejuice = Promise.all([paxos, fileSystemProtocol, swimFuture])
           concurrentStreams.push([newStream, index + 1]);
           return newStream[index];
         }
-      });
+      })(i));
     }
     // start job
     await masterRequest('maple', {
